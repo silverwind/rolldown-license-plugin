@@ -1,14 +1,8 @@
 # rolldown-license-plugin
 
-[![](https://img.shields.io/npm/v/rolldown-license-plugin.svg?style=flat)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://img.shields.io/npm/dm/rolldown-license-plugin.svg)](https://www.npmjs.org/package/rolldown-license-plugin)
+[![](https://img.shields.io/npm/v/rolldown-license-plugin.svg?style=flat)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://img.shields.io/npm/dm/rolldown-license-plugin.svg)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://depx.co/api/badge/rolldown-license-plugin)](https://depx.co/pkg/rolldown-license-plugin)
 
-Rolldown plugin to extract dependency licenses from bundled `node_modules` with zero dependencies.
-
-## Installation
-
-```console
-npm i rolldown-license-plugin
-```
+Rolldown plugin to extract dependency licenses.
 
 ## Usage
 
@@ -19,8 +13,8 @@ export default {
   plugins: [
     licensePlugin({
       onDone(licenses) {
-        // licenses is an array of {name, version, license, licenseText}
         console.info(licenses);
+        // => [{name, version, license, licenseText}]
       },
     }),
   ],
@@ -31,7 +25,7 @@ export default {
 
 ### `licensePlugin(opts)`
 
-Returns a Rolldown plugin.
+Returns the plugin.
 
 #### `opts.onDone`
 
@@ -62,6 +56,10 @@ type LicenseInfo = {
   licenseText: string; // contents of LICENSE/COPYING file, or ""
 };
 ```
+
+### `wrap(length)`
+
+Function to word-wrap text to a certain column width.
 
 ## License
 

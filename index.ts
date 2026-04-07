@@ -45,23 +45,33 @@ export const licensePlugin = ({onDone, match = defaultMatch}: RolldownLicensePlu
         const fsPath = moduleId.split("?")[0];
         if (!fsPath.includes("node_modules")) continue;
         let dir = dirname(fsPath);
+        const cached = pkgJsonCache.get(dir);
+        if (cached !== undefined) {
+          if (cached?.name) {
+            const key = `${cached.name}@${cached.version ?? ""}`;
+            if (!pkgDirs.has(key)) pkgDirs.set(key, {dir, pkgJson: cached});
+          }
+          continue;
+        }
         let pkgJson: PkgJson | null = null;
+        const walked: string[] = [];
         while (dir !== dirname(dir) && dir.includes("node_modules")) {
-          const cached = pkgJsonCache.get(dir);
-          if (cached !== undefined) {
-            pkgJson = cached;
-          } else {
-            try {
-              pkgJson = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as PkgJson;
-            } catch {
-              pkgJson = null;
-            }
-            pkgJsonCache.set(dir, pkgJson);
+          const cachedInner = pkgJsonCache.get(dir);
+          if (cachedInner !== undefined) {
+            pkgJson = cachedInner;
+            break;
+          }
+          walked.push(dir);
+          try {
+            pkgJson = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as PkgJson;
+          } catch {
+            pkgJson = null;
           }
           if (pkgJson?.name) break;
           pkgJson = null;
           dir = dirname(dir);
         }
+        for (const walkedDir of walked) pkgJsonCache.set(walkedDir, pkgJson);
         if (!pkgJson?.name) continue;
         const key = `${pkgJson.name}@${pkgJson.version ?? ""}`;
         if (!pkgDirs.has(key)) pkgDirs.set(key, {dir, pkgJson});

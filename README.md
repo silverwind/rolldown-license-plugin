@@ -46,6 +46,12 @@ Type: `number`
 
 When set, word-wrap `licenseText` to this column width.
 
+#### `opts.allow`
+
+Type: `(license: LicenseInfo) => boolean`
+
+Validate each dependency's license. Return `false` to throw a build error.
+
 ### `LicenseInfo`
 
 ```typescript

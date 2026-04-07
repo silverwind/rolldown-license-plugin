@@ -26,6 +26,8 @@ export type RolldownLicensePluginOpts = {
   match?: RegExp;
   /** When set, word-wrap `licenseText` to this column width */
   wrapText?: number;
+  /** Validate each dependency's license. Return `false` to throw a build error */
+  allow?: (license: LicenseInfo) => boolean;
 };
 
 type PkgJsonLicense = string | {type?: string};
@@ -75,7 +77,7 @@ function parseLicense(pkgJson: PkgJson): string {
 }
 
 /** Rolldown plugin that extracts license information from bundled dependencies */
-export const licensePlugin = ({onDone, match = defaultMatch, wrapText}: RolldownLicensePluginOpts): Plugin => ({
+export const licensePlugin = ({onDone, match = defaultMatch, wrapText, allow}: RolldownLicensePluginOpts): Plugin => ({
   name: "rolldown-license-plugin",
   async generateBundle(_opts, bundle) {
     const pkgJsonCache = new Map<string, PkgJson | null>();
@@ -139,6 +141,14 @@ export const licensePlugin = ({onDone, match = defaultMatch, wrapText}: Rolldown
     }));
 
     licenses.sort((a, b) => a.name.localeCompare(b.name));
+
+    if (allow) {
+      const violations = licenses.filter((entry) => !allow(entry));
+      if (violations.length) {
+        throw new Error(`License violation in: ${violations.map((entry) => `${entry.name}@${entry.version} (${entry.license || "unlicensed"})`).join(", ")}`);
+      }
+    }
+
     onDone(licenses);
   },
 });

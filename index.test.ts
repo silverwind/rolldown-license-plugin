@@ -6,20 +6,20 @@ import type {LicenseInfo} from "./index.ts";
 
 const fixturesDir = join(import.meta.dirname, "fixtures");
 
-function buildWithPlugin(onDone: (licenses: LicenseInfo[]) => void, wrapText?: number) {
+function buildWithPlugin(opts: Partial<Parameters<typeof licensePlugin>[0]> = {}) {
   return build({
     input: join(fixturesDir, "entry.js"),
     resolve: {
       modules: [join(fixturesDir, "node_modules")],
     },
     write: false,
-    plugins: [licensePlugin({onDone, wrapText})],
+    plugins: [licensePlugin({onDone() {}, ...opts})],
   });
 }
 
 test("collects licenses from bundled dependencies", async () => {
   let result: LicenseInfo[] = [];
-  await buildWithPlugin((licenses) => { result = licenses; });
+  await buildWithPlugin({onDone(licenses) { result = licenses; }});
 
   expect(result).toHaveLength(4);
 
@@ -54,7 +54,7 @@ test("collects licenses from bundled dependencies", async () => {
 
 test("wrapText wraps license text to specified width", async () => {
   let result: LicenseInfo[] = [];
-  await buildWithPlugin((licenses) => { result = licenses; }, 80);
+  await buildWithPlugin({onDone(licenses) { result = licenses; }, wrapText: 80});
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   for (const line of pkg.licenseText.split("\n")) {
@@ -66,8 +66,23 @@ test("wrapText wraps license text to specified width", async () => {
 
 test("wrapText preserves blank lines", async () => {
   let result: LicenseInfo[] = [];
-  await buildWithPlugin((licenses) => { result = licenses; }, 80);
+  await buildWithPlugin({onDone(licenses) { result = licenses; }, wrapText: 80});
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   expect(pkg.licenseText).toContain("\n\n");
+});
+
+test("allow throws on license violation", async () => {
+  await expect(buildWithPlugin({
+    allow: (dep) => dep.license === "MIT",
+  })).rejects.toThrow("License violation");
+});
+
+test("allow passes when all licenses match", async () => {
+  let result: LicenseInfo[] = [];
+  await buildWithPlugin({
+    onDone(licenses) { result = licenses; },
+    allow: (dep) => /MIT|ISC|Apache/.test(dep.license),
+  });
+  expect(result).toHaveLength(4);
 });

@@ -1,0 +1,36 @@
+{
+  "name": "rolldown-license-plugin",
+  "version": "0.0.0",
+  "description": "Rolldown plugin to extract dependency licenses",
+  "author": "silverwind <me@silverwind.io>",
+  "repository": "silverwind/rolldown-license-plugin",
+  "license": "BSD-2-Clause",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "25.5.0",
+    "@typescript/native-preview": "7.0.0-dev.20260324.1",
+    "eslint": "10.1.0",
+    "eslint-config-silverwind": "127.1.4",
+    "jest-extended": "7.0.0",
+    "rolldown": "1.0.0-rc.13",
+    "tsdown": "0.21.4",
+    "tsdown-config-silverwind": "2.0.2",
+    "typescript": "5.9.3",
+    "typescript-config-silverwind": "16.1.0",
+    "updates": "17.11.2",
+    "updates-config-silverwind": "2.0.1",
+    "versions": "14.2.4",
+    "vitest": "4.1.1",
+    "vitest-config-silverwind": "11.0.0"
+  },
+  "packageManager": "pnpm@10.33.0"
+}

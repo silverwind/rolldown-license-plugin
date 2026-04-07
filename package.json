@@ -1,6 +1,6 @@
 {
   "name": "rolldown-license-plugin",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Rolldown plugin to extract dependency licenses",
   "author": "silverwind <me@silverwind.io>",
   "repository": "silverwind/rolldown-license-plugin",

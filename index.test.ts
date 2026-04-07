@@ -6,14 +6,14 @@ import type {LicenseInfo} from "./index.ts";
 
 const fixturesDir = join(import.meta.dirname, "fixtures");
 
-function buildWithPlugin(onDone: (licenses: LicenseInfo[]) => void) {
+function buildWithPlugin(onDone: (licenses: LicenseInfo[]) => void, wrapText?: number) {
   return build({
     input: join(fixturesDir, "entry.js"),
     resolve: {
       modules: [join(fixturesDir, "node_modules")],
     },
     write: false,
-    plugins: [licensePlugin({onDone})],
+    plugins: [licensePlugin({onDone, wrapText})],
   });
 }
 
@@ -50,4 +50,24 @@ test("collects licenses from bundled dependencies", async () => {
     license: "MIT OR Apache-2.0",
     licenseText: "",
   });
+});
+
+test("wrapText wraps license text to specified width", async () => {
+  let result: LicenseInfo[] = [];
+  await buildWithPlugin((licenses) => { result = licenses; }, 80);
+
+  const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
+  for (const line of pkg.licenseText.split("\n")) {
+    expect(line.length).toBeLessThanOrEqual(80);
+  }
+  expect(pkg.licenseText).toContain("MIT License");
+  expect(pkg.licenseText).toContain("\n");
+});
+
+test("wrapText preserves blank lines", async () => {
+  let result: LicenseInfo[] = [];
+  await buildWithPlugin((licenses) => { result = licenses; }, 80);
+
+  const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
+  expect(pkg.licenseText).toContain("\n\n");
 });

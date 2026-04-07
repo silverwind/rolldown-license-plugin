@@ -2,7 +2,7 @@
 
 [![](https://img.shields.io/npm/v/rolldown-license-plugin.svg?style=flat)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://img.shields.io/npm/dm/rolldown-license-plugin.svg)](https://www.npmjs.org/package/rolldown-license-plugin)
 
-Rolldown plugin to extract dependency licenses from bundled `node_modules`. Zero dependencies, and will always stay that way.
+Rolldown plugin to extract dependency licenses from bundled `node_modules` with zero dependencies.
 
 ## Installation
 
@@ -45,6 +45,12 @@ Type: `RegExp`\
 Default: `/^((UN)?LICEN(S|C)E|COPYING).*$/i`
 
 Regex to match license filenames in package directories.
+
+#### `opts.wrapText`
+
+Type: `number`
+
+When set, word-wrap `licenseText` to this column width.
 
 ### `LicenseInfo`
 

@@ -31,7 +31,8 @@ export type RolldownLicensePluginOpts = {
 type PkgJsonLicense = string | {type?: string};
 type PkgJson = {name?: string, version?: string, license?: PkgJsonLicense, licenses?: PkgJsonLicense[]};
 
-function wrap(text: string, width: number): string {
+/** Word-wrap plain text to a specified column width */
+export function wrap(text: string, width: number): string {
   const lines: string[] = [];
   for (const rawLine of text.replace(/\r/g, "").split("\n")) {
     const inputLine = rawLine.replace(/\t/g, (_, offset) => " ".repeat(8 - (offset % 8)));

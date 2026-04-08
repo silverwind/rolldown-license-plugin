@@ -151,9 +151,9 @@ export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, fail
       for (const entry of licenses) {
         if (allow(entry)) continue;
         const fail = entry.license ? failOnViolation : failOnUnlicensed;
-        const msg = entry.license
-          ? `Dependency "${entry.name}" has an incompatible license: ${entry.license}`
-          : `Dependency "${entry.name}" does not specify any license.`;
+        const msg = entry.license ?
+          `Dependency "${entry.name}" has an incompatible license: ${entry.license}` :
+          `Dependency "${entry.name}" does not specify any license.`;
         if (fail) errors.push(msg); else console.warn(msg);
       }
       if (errors.length) {

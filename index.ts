@@ -28,9 +28,9 @@ export type RolldownLicensePluginOpts = {
   wrapText?: number;
   /** Validate each dependency's license. Return `false` to reject it */
   allow?: (license: LicenseInfo) => boolean;
-  /** Throw a build error when `allow` rejects a dependency. Default: `false` (warn only) */
+  /** Throw a build error when a dependency has an incompatible license. Default: `false` (warn only) */
   failOnViolation?: boolean;
-  /** Throw a build error when a dependency has no license. Default: `false` (warn only) */
+  /** Throw a build error when a dependency does not specify any license. Default: `false` (warn only) */
   failOnUnlicensed?: boolean;
 };
 

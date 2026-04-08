@@ -57,14 +57,14 @@ Validate each dependency's license. Return `false` to reject it. By default, rej
 Type: `boolean`\
 Default: `false`
 
-Throw a build error when `allow` rejects a dependency that has a license.
+Throw a build error when a dependency has an incompatible license.
 
 #### `opts.failOnUnlicensed`
 
 Type: `boolean`\
 Default: `false`
 
-Throw a build error when `allow` rejects a dependency that has no license.
+Throw a build error when a dependency does not specify any license.
 
 ### `LicenseInfo`
 

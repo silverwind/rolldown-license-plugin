@@ -12,7 +12,7 @@ import {licensePlugin} from "rolldown-license-plugin";
 export default {
   plugins: [
     licensePlugin({
-      onDone(licenses) {
+      done(licenses) {
         console.info(licenses);
         // => [{name, version, license, licenseText}]
       },
@@ -27,7 +27,7 @@ export default {
 
 Returns the plugin.
 
-#### `opts.onDone`
+#### `opts.done`
 
 Type: `(licenses: LicenseInfo[]) => void`
 

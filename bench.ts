@@ -67,7 +67,7 @@ try {
     input: join(tmpDir, "entry.js"),
     resolve: {modules: [nmDir]},
     write: false, logLevel: "silent",
-    plugins: [licensePlugin({onDone(licenses) { bundleResult = licenses; }})],
+    plugins: [licensePlugin({done(licenses) { bundleResult = licenses; }})],
   });
   console.info(`Found ${bundleResult.length} packages with ${bundleResult.filter((l) => l.licenseText).length} license files\n`);
 
@@ -77,7 +77,7 @@ try {
       input: join(tmpDir, "entry.js"),
       resolve: {modules: [nmDir]},
       write: false, logLevel: "silent",
-      plugins: [licensePlugin({onDone() {}})],
+      plugins: [licensePlugin({done() {}})],
     });
   });
 
@@ -105,7 +105,7 @@ try {
   console.info(`\nCaptured bundle: ${moduleCount} modules`);
 
   await bench("generateBundle only", async () => {
-    const plugin = licensePlugin({onDone() {}});
+    const plugin = licensePlugin({done() {}});
     await (plugin as any).generateBundle({}, capturedBundle);
   });
 

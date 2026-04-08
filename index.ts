@@ -21,7 +21,7 @@ export type LicenseInfo = {
 /** Options for {@link licensePlugin} */
 export type RolldownLicensePluginOpts = {
   /** Called during `generateBundle` with the collected license data, sorted by name */
-  onDone: (licenses: LicenseInfo[]) => void;
+  done: (licenses: LicenseInfo[]) => void;
   /** Regex to match license filenames. Default: `/^((UN)?LICEN(S|C)E|COPYING).*$/i` */
   match?: RegExp;
   /** When set, word-wrap `licenseText` to this column width */
@@ -77,7 +77,7 @@ function parseLicense(pkgJson: PkgJson): string {
 }
 
 /** Rolldown plugin that extracts license information from bundled dependencies */
-export const licensePlugin = ({onDone, match = defaultMatch, wrapText, allow}: RolldownLicensePluginOpts): Plugin => ({
+export const licensePlugin = ({done, match = defaultMatch, wrapText, allow}: RolldownLicensePluginOpts): Plugin => ({
   name: "rolldown-license-plugin",
   async generateBundle(_opts, bundle) {
     const pkgJsonCache = new Map<string, PkgJson | null>();
@@ -149,6 +149,6 @@ export const licensePlugin = ({onDone, match = defaultMatch, wrapText, allow}: R
       }
     }
 
-    onDone(licenses);
+    done(licenses);
   },
 });

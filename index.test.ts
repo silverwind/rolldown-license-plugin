@@ -13,13 +13,13 @@ function buildWithPlugin(opts: Partial<Parameters<typeof licensePlugin>[0]> = {}
       modules: [join(fixturesDir, "node_modules")],
     },
     write: false,
-    plugins: [licensePlugin({onDone() {}, ...opts})],
+    plugins: [licensePlugin({done() {}, ...opts})],
   });
 }
 
 test("collects licenses from bundled dependencies", async () => {
   let result: LicenseInfo[] = [];
-  await buildWithPlugin({onDone(licenses) { result = licenses; }});
+  await buildWithPlugin({done(licenses) { result = licenses; }});
 
   expect(result).toHaveLength(4);
 
@@ -54,7 +54,7 @@ test("collects licenses from bundled dependencies", async () => {
 
 test("wrapText wraps license text to specified width", async () => {
   let result: LicenseInfo[] = [];
-  await buildWithPlugin({onDone(licenses) { result = licenses; }, wrapText: 80});
+  await buildWithPlugin({done(licenses) { result = licenses; }, wrapText: 80});
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   for (const line of pkg.licenseText.split("\n")) {
@@ -66,7 +66,7 @@ test("wrapText wraps license text to specified width", async () => {
 
 test("wrapText preserves blank lines", async () => {
   let result: LicenseInfo[] = [];
-  await buildWithPlugin({onDone(licenses) { result = licenses; }, wrapText: 80});
+  await buildWithPlugin({done(licenses) { result = licenses; }, wrapText: 80});
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   expect(pkg.licenseText).toContain("\n\n");
@@ -81,7 +81,7 @@ test("allow throws on license violation", async () => {
 test("allow passes when all licenses match", async () => {
   let result: LicenseInfo[] = [];
   await buildWithPlugin({
-    onDone(licenses) { result = licenses; },
+    done(licenses) { result = licenses; },
     allow: (dep) => /MIT|ISC|Apache/.test(dep.license),
   });
   expect(result).toHaveLength(4);

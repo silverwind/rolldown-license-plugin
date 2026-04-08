@@ -26,8 +26,12 @@ export type RolldownLicensePluginOpts = {
   match?: RegExp;
   /** When set, word-wrap `licenseText` to this column width */
   wrapText?: number;
-  /** Validate each dependency's license. Return `false` to throw a build error */
+  /** Validate each dependency's license. Return `false` to reject it */
   allow?: (license: LicenseInfo) => boolean;
+  /** Throw a build error when `allow` rejects a dependency. Default: `false` (warn only) */
+  failOnViolation?: boolean;
+  /** Throw a build error when a dependency has no license. Default: `false` (warn only) */
+  failOnUnlicensed?: boolean;
 };
 
 type PkgJsonLicense = string | {type?: string};
@@ -77,7 +81,7 @@ function parseLicense(pkgJson: PkgJson): string {
 }
 
 /** Rolldown plugin that extracts license information from bundled dependencies */
-export const licensePlugin = ({done, match = defaultMatch, wrapText, allow}: RolldownLicensePluginOpts): Plugin => ({
+export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, failOnViolation = false, failOnUnlicensed = false}: RolldownLicensePluginOpts): Plugin => ({
   name: "rolldown-license-plugin",
   async generateBundle(_opts, bundle) {
     const pkgJsonCache = new Map<string, PkgJson | null>();
@@ -143,9 +147,17 @@ export const licensePlugin = ({done, match = defaultMatch, wrapText, allow}: Rol
     licenses.sort((a, b) => a.name.localeCompare(b.name));
 
     if (allow) {
-      const violations = licenses.filter((entry) => !allow(entry));
-      if (violations.length) {
-        throw new Error(`License violation in: ${violations.map((entry) => `${entry.name}@${entry.version} (${entry.license || "unlicensed"})`).join(", ")}`);
+      const errors: string[] = [];
+      for (const entry of licenses) {
+        if (allow(entry)) continue;
+        const fail = entry.license ? failOnViolation : failOnUnlicensed;
+        const msg = entry.license
+          ? `Dependency "${entry.name}" has an incompatible license: ${entry.license}`
+          : `Dependency "${entry.name}" does not specify any license.`;
+        if (fail) errors.push(msg); else console.warn(msg);
+      }
+      if (errors.length) {
+        throw new Error(errors.join("\n"));
       }
     }
 

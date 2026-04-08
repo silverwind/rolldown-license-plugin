@@ -50,7 +50,21 @@ When set, word-wrap `licenseText` to this column width.
 
 Type: `(license: LicenseInfo) => boolean`
 
-Validate each dependency's license. Return `false` to throw a build error.
+Validate each dependency's license. Return `false` to reject it. By default, rejected dependencies are warned via `console.warn`. Use `failOnViolation` and `failOnUnlicensed` to throw build errors instead.
+
+#### `opts.failOnViolation`
+
+Type: `boolean`\
+Default: `false`
+
+Throw a build error when `allow` rejects a dependency that has a license.
+
+#### `opts.failOnUnlicensed`
+
+Type: `boolean`\
+Default: `false`
+
+Throw a build error when `allow` rejects a dependency that has no license.
 
 ### `LicenseInfo`
 

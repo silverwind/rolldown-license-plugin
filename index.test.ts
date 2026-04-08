@@ -21,7 +21,7 @@ test("collects licenses from bundled dependencies", async () => {
   let result: LicenseInfo[] = [];
   await buildWithPlugin({done(licenses) { result = licenses; }});
 
-  expect(result).toHaveLength(4);
+  expect(result).toHaveLength(5);
 
   expect(result[0]).toEqual({
     name: "test-pkg-a",
@@ -50,6 +50,13 @@ test("collects licenses from bundled dependencies", async () => {
     license: "MIT OR Apache-2.0",
     licenseText: "",
   });
+
+  expect(result[4]).toEqual({
+    name: "test-pkg-e",
+    version: "5.0.0",
+    license: "",
+    licenseText: "",
+  });
 });
 
 test("wrapText wraps license text to specified width", async () => {
@@ -72,17 +79,54 @@ test("wrapText preserves blank lines", async () => {
   expect(pkg.licenseText).toContain("\n\n");
 });
 
-test("allow throws on license violation", async () => {
+test("allow warns by default without failing", async () => {
+  let result: LicenseInfo[] = [];
+  await buildWithPlugin({
+    done(licenses) { result = licenses; },
+    allow: (dep) => dep.license === "MIT",
+  });
+  expect(result).toHaveLength(5);
+});
+
+test("failOnViolation throws on license mismatch", async () => {
   await expect(buildWithPlugin({
     allow: (dep) => dep.license === "MIT",
-  })).rejects.toThrow("License violation");
+    failOnViolation: true,
+  })).rejects.toThrow("incompatible license");
+});
+
+test("failOnUnlicensed throws on missing license", async () => {
+  await expect(buildWithPlugin({
+    allow: (dep) => Boolean(dep.license),
+    failOnUnlicensed: true,
+  })).rejects.toThrow("does not specify any license");
+});
+
+test("failOnViolation does not throw for unlicensed", async () => {
+  let result: LicenseInfo[] = [];
+  await buildWithPlugin({
+    done(licenses) { result = licenses; },
+    allow: (dep) => Boolean(dep.license),
+    failOnViolation: true,
+  });
+  expect(result).toHaveLength(5);
+});
+
+test("failOnUnlicensed does not throw for license mismatch", async () => {
+  let result: LicenseInfo[] = [];
+  await buildWithPlugin({
+    done(licenses) { result = licenses; },
+    allow: (dep) => !dep.license || dep.license === "MIT",
+    failOnUnlicensed: true,
+  });
+  expect(result).toHaveLength(5);
 });
 
 test("allow passes when all licenses match", async () => {
   let result: LicenseInfo[] = [];
   await buildWithPlugin({
     done(licenses) { result = licenses; },
-    allow: (dep) => /MIT|ISC|Apache/.test(dep.license),
+    allow: () => true,
   });
-  expect(result).toHaveLength(4);
+  expect(result).toHaveLength(5);
 });

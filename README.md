@@ -29,9 +29,9 @@ Returns the plugin.
 
 #### `opts.done`
 
-Type: `(licenses: LicenseInfo[]) => void`
+Type: `(licenses: LicenseInfo[], context: PluginContext) => void | Promise<void>`
 
-Callback invoked during `generateBundle` with the collected license data.
+Callback invoked during `generateBundle` with the collected license data. The `context` parameter provides access to rolldown's plugin context, including `emitFile`.
 
 #### `opts.match`
 

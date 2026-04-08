@@ -2,7 +2,7 @@ import {readFile, readdir} from "node:fs/promises";
 import {readFileSync} from "node:fs";
 import {dirname, join} from "node:path";
 
-import type {Plugin} from "rolldown";
+import type {Plugin, PluginContext} from "rolldown";
 
 const defaultMatch = /^((UN)?LICEN(S|C)E|COPYING).*$/i;
 
@@ -21,7 +21,7 @@ export type LicenseInfo = {
 /** Options for {@link licensePlugin} */
 export type RolldownLicensePluginOpts = {
   /** Called during `generateBundle` with the collected license data, sorted by name */
-  done: (licenses: LicenseInfo[]) => void;
+  done: (licenses: LicenseInfo[], context: PluginContext) => void | Promise<void>;
   /** Regex to match license filenames. Default: `/^((UN)?LICEN(S|C)E|COPYING).*$/i` */
   match?: RegExp;
   /** When set, word-wrap `licenseText` to this column width */
@@ -149,6 +149,6 @@ export const licensePlugin = ({done, match = defaultMatch, wrapText, allow}: Rol
       }
     }
 
-    done(licenses);
+    await done(licenses, this);
   },
 });

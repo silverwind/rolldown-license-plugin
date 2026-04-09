@@ -77,9 +77,9 @@ type LicenseInfo = {
 };
 ```
 
-### `wrap(length)`
+### `wrap(text, width)`
 
-Function to word-wrap text to a certain column width.
+Function to word-wrap `text` to a certain column `width`. Returns the wrapped string.
 
 ## License
 

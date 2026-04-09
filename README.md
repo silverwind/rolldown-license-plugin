@@ -12,8 +12,8 @@ import {licensePlugin} from "rolldown-license-plugin";
 export default {
   plugins: [
     licensePlugin({
-      done(licenses) {
-        console.info(licenses);
+      done(deps) {
+        console.info(deps);
         // => [{name, version, license, licenseText}]
       },
     }),

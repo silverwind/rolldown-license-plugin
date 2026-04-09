@@ -15,6 +15,9 @@
   "files": [
     "dist"
   ],
+  "peerDependencies": {
+    "rolldown": "*"
+  },
   "devDependencies": {
     "@types/node": "25.5.2",
     "@typescript/native-preview": "7.0.0-dev.20260408.1",

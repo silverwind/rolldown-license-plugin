@@ -1,6 +1,5 @@
 import {readFile, readdir} from "node:fs/promises";
-import {readFileSync} from "node:fs";
-import {dirname, join} from "node:path";
+import {join} from "node:path";
 
 import type {Plugin, PluginContext} from "rolldown";
 
@@ -80,53 +79,51 @@ function parseLicense(pkgJson: PkgJson): string {
   return "";
 }
 
+const nmSep = "/node_modules/";
+
+/** Resolve the package root directory from a file path inside node_modules */
+function findPkgRoot(fsPath: string): string | null {
+  const nmIdx = fsPath.lastIndexOf(nmSep);
+  if (nmIdx === -1) return null;
+  const base = nmIdx + nmSep.length;
+  const rest = fsPath.slice(base);
+  if (rest.startsWith("@")) {
+    const firstSlash = rest.indexOf("/");
+    if (firstSlash === -1) return null;
+    const secondSlash = rest.indexOf("/", firstSlash + 1);
+    return fsPath.slice(0, base) + rest.slice(0, secondSlash === -1 ? rest.length : secondSlash);
+  }
+  const firstSlash = rest.indexOf("/");
+  return fsPath.slice(0, base) + rest.slice(0, firstSlash === -1 ? rest.length : firstSlash);
+}
+
 /** Rolldown plugin that extracts license information from bundled dependencies */
 export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, failOnViolation = false, failOnUnlicensed = false}: RolldownLicensePluginOpts): Plugin => ({
   name: "rolldown-license-plugin",
   async generateBundle(_opts, bundle) {
-    const pkgJsonCache = new Map<string, PkgJson | null>();
-    const pkgDirs = new Map<string, {dir: string, pkgJson: PkgJson}>();
-
+    const roots = new Set<string>();
     for (const chunk of Object.values(bundle)) {
       if (chunk.type !== "chunk") continue;
       for (const moduleId of Object.keys(chunk.modules)) {
-        const fsPath = moduleId.split("?")[0];
-        if (!fsPath.includes("node_modules")) continue;
-        let dir = dirname(fsPath);
-        const cached = pkgJsonCache.get(dir);
-        if (cached !== undefined) {
-          if (cached?.name) {
-            const key = `${cached.name}@${cached.version ?? ""}`;
-            if (!pkgDirs.has(key)) pkgDirs.set(key, {dir, pkgJson: cached});
-          }
-          continue;
-        }
-        let pkgJson: PkgJson | null = null;
-        const walked: string[] = [];
-        while (dir !== dirname(dir) && dir.includes("node_modules")) {
-          const cachedInner = pkgJsonCache.get(dir);
-          if (cachedInner !== undefined) {
-            pkgJson = cachedInner;
-            break;
-          }
-          walked.push(dir);
-          try {
-            pkgJson = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as PkgJson;
-          } catch {
-            pkgJson = null;
-          }
-          if (pkgJson?.name) break;
-          pkgJson = null;
-          dir = dirname(dir);
-        }
-        for (const walkedDir of walked) pkgJsonCache.set(walkedDir, pkgJson);
-        if (!pkgJson?.name) continue;
-        const key = `${pkgJson.name}@${pkgJson.version ?? ""}`;
-        if (!pkgDirs.has(key)) pkgDirs.set(key, {dir, pkgJson});
+        const qIdx = moduleId.indexOf("?");
+        const root = findPkgRoot(qIdx === -1 ? moduleId : moduleId.slice(0, qIdx));
+        if (root) roots.add(root);
       }
     }
 
-    const licenses = await Promise.all(Array.from(pkgDirs.values(), async ({dir, pkgJson}) => {
+    const seen = new Set<string>();
+    const licenses: LicenseInfo[] = [];
+
+    await Promise.all(Array.from(roots, async (dir) => {
+      let pkgJson: PkgJson;
+      try {
+        pkgJson = JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as PkgJson;
+      } catch { return; }
+      if (!pkgJson.name) return;
+      const key = `${pkgJson.name}@${pkgJson.version ?? ""}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
       let licenseText = "";
       try {
         const files = await readdir(dir);
@@ -136,12 +133,13 @@ export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, fail
           if (wrapText) licenseText = wrap(licenseText, wrapText).trim();
         }
       } catch {}
-      return {
-        name: pkgJson.name!,
+
+      licenses.push({
+        name: pkgJson.name,
         version: pkgJson.version ?? "",
         license: parseLicense(pkgJson),
         licenseText,
-      };
+      });
     }));
 
     licenses.sort((a, b) => a.name.localeCompare(b.name));

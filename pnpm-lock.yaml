@@ -39,14 +39,14 @@ importers:
         specifier: 17.0.0
         version: 17.0.0
       updates:
-        specifier: 17.13.5
-        version: 17.13.5
+        specifier: 17.14.0
+        version: 17.14.0
       updates-config-silverwind:
         specifier: 2.0.1
         version: 2.0.1(prettier@3.8.1)
       versions:
-        specifier: 14.2.6
-        version: 14.2.6
+        specifier: 14.2.7
+        version: 14.2.7
       vitest:
         specifier: 4.1.4
         version: 4.1.4(@types/node@25.5.2)(vite@8.0.8(@types/node@25.5.2))
@@ -1258,16 +1258,16 @@ packages:
     peerDependencies:
       prettier: '*'
 
-  updates@17.13.5:
-    resolution: {integrity: sha512-jdvXAvQ3rPuVDPV2vQCCQ21sOzNij9Rpacx68dCZJd2cI9Ll2cePeqrcFbwTVK5mVrBpXukQlUQuZd30jKKKVg==}
+  updates@17.14.0:
+    resolution: {integrity: sha512-vjn+c5Nr+hjZkBO77G8uTb+SpoQctlq6Ma472lv0/XeoPjlgmnWHrvqU7Zq17F10mKgEfvqz+gy3G7agRT/afA==}
     engines: {node: '>=22'}
     hasBin: true
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
-  versions@14.2.6:
-    resolution: {integrity: sha512-fqDk+IUTj1Ng1O6ElpVgDtlyVT2KxdRhc9o3psFceSqeRyw9Qf0SojW+88gvkSI7LcU7a5vICKVoHZOFuBlAww==}
+  versions@14.2.7:
+    resolution: {integrity: sha512-PiABtQCUTxcd0Ue0dfXmIbwtGR0xUQ6YWrdWI39tf30g2Xs5SD01jiRKNqB9G9JqBUWaoPfUk1/A139d3A0Gug==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -2427,13 +2427,13 @@ snapshots:
     dependencies:
       prettier: 3.8.1
 
-  updates@17.13.5: {}
+  updates@17.14.0: {}
 
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
 
-  versions@14.2.6: {}
+  versions@14.2.7: {}
 
   vite@8.0.8(@types/node@25.5.2):
     dependencies:

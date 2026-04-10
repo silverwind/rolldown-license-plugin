@@ -4,7 +4,6 @@ import {tmpdir} from "node:os";
 import {readFile, readdir} from "node:fs/promises";
 import {build} from "rolldown";
 import {licensePlugin} from "./index.ts";
-
 import type {LicenseInfo} from "./index.ts";
 
 const iterations = 10;

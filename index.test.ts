@@ -5,7 +5,6 @@ import {build} from "rolldown";
 import {build as tsdownBuild} from "tsdown";
 import {build as viteBuild} from "vite";
 import {licensePlugin} from "./index.ts";
-
 import type {LicenseInfo} from "./index.ts";
 
 const fixturesDir = join(import.meta.dirname, "fixtures");

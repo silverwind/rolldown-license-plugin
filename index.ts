@@ -1,6 +1,5 @@
 import {readFile, readdir} from "node:fs/promises";
 import {join, sep} from "node:path";
-
 import type {Plugin, PluginContext} from "rolldown";
 
 const defaultMatch = /^((UN)?LICEN(S|C)E|COPYING).*$/i;

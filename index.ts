@@ -1,5 +1,5 @@
 import {readFile, readdir} from "node:fs/promises";
-import {join} from "node:path";
+import {join, sep} from "node:path";
 
 import type {Plugin, PluginContext} from "rolldown";
 
@@ -80,21 +80,21 @@ function parseLicense(pkgJson: PkgJson): string {
 }
 
 const nmSep = "/node_modules/";
-
 /** Resolve the package root directory from a file path inside node_modules */
 function findPkgRoot(fsPath: string): string | null {
-  const nmIdx = fsPath.lastIndexOf(nmSep);
+  const p = sep !== "/" ? fsPath.replaceAll(sep, "/") : fsPath;
+  const nmIdx = p.lastIndexOf(nmSep);
   if (nmIdx === -1) return null;
   const base = nmIdx + nmSep.length;
-  const rest = fsPath.slice(base);
+  const rest = p.slice(base);
   if (rest.startsWith("@")) {
     const firstSlash = rest.indexOf("/");
     if (firstSlash === -1) return null;
     const secondSlash = rest.indexOf("/", firstSlash + 1);
-    return fsPath.slice(0, base) + rest.slice(0, secondSlash === -1 ? rest.length : secondSlash);
+    return p.slice(0, base) + rest.slice(0, secondSlash === -1 ? rest.length : secondSlash);
   }
   const firstSlash = rest.indexOf("/");
-  return fsPath.slice(0, base) + rest.slice(0, firstSlash === -1 ? rest.length : firstSlash);
+  return p.slice(0, base) + rest.slice(0, firstSlash === -1 ? rest.length : firstSlash);
 }
 
 /** Rolldown plugin that extracts license information from bundled dependencies */

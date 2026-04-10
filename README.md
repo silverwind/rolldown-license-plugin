@@ -77,8 +77,8 @@ Throw a build error when a dependency does not specify any license.
 ```typescript
 type LicenseInfo = {
   name: string;        // package name
-  version: string;     // package version
-  license: string;     // SPDX license identifier from package.json
+  version: string;     // package version, or ""
+  license: string;     // SPDX license identifier from package.json, or ""
   licenseText: string; // contents of LICENSE/COPYING file, or ""
 };
 ```

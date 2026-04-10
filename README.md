@@ -2,7 +2,7 @@
 
 [![](https://img.shields.io/npm/v/rolldown-license-plugin.svg?style=flat)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://img.shields.io/npm/dm/rolldown-license-plugin.svg)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://depx.co/api/badge/rolldown-license-plugin)](https://depx.co/pkg/rolldown-license-plugin)
 
-Rolldown plugin to extract dependency licenses.
+Rolldown plugin to extract dependency licenses and optionally validate them. Zero dependencies, optimized for performance.
 
 ## Usage
 

@@ -13,10 +13,14 @@ export default {
   plugins: [
     licensePlugin({
       done(deps, context) {
-        const content = deps.map(dep => (
-          `${dep.name} ${dep.version} (${dep.license})\n${dep.licenseText}`
+        const content = deps.map(({name, version, license, licenseText}) => (
+          `${name} ${version} (${license})\n${licenseText}`
         )).join("\n\n");
-        context.emitFile({type: "asset", fileName: "licenses.txt", source: content});
+        context.emitFile({
+          type: "asset",
+          fileName: "licenses.txt",
+          source: content,
+        });
       },
     }),
   ],

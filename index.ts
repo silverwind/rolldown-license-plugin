@@ -1,4 +1,4 @@
-import {readFile, readdir} from "node:fs/promises";
+import {readFileSync, readdirSync} from "node:fs";
 import {join, sep} from "node:path";
 import type {Plugin, PluginContext} from "rolldown";
 
@@ -113,25 +113,27 @@ export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, fail
     const seen = new Set<string>();
     const licenses: LicenseInfo[] = [];
 
-    await Promise.all(Array.from(roots, async (dir) => {
+    for (const dir of roots) {
       let pkgJson: PkgJson;
       try {
-        pkgJson = JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as PkgJson;
-      } catch { return; }
-      if (!pkgJson.name) return;
+        pkgJson = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as PkgJson;
+      } catch { continue; }
+      if (!pkgJson.name) continue;
       const key = `${pkgJson.name}@${pkgJson.version ?? ""}`;
-      if (seen.has(key)) return;
+      if (seen.has(key)) continue;
       seen.add(key);
 
       let licenseText = "";
       try {
-        const files = await readdir(dir);
-        const licenseFile = files.find((entry) => match.test(entry));
-        if (licenseFile) {
-          licenseText = await readFile(join(dir, licenseFile), "utf8");
-          if (wrapText) licenseText = wrap(licenseText, wrapText).trim();
-        }
-      } catch {}
+        licenseText = readFileSync(join(dir, "LICENSE"), "utf8");
+      } catch {
+        try {
+          const files = readdirSync(dir);
+          const licenseFile = files.find((entry) => match.test(entry));
+          if (licenseFile) licenseText = readFileSync(join(dir, licenseFile), "utf8");
+        } catch {}
+      }
+      if (wrapText && licenseText) licenseText = wrap(licenseText, wrapText).trim();
 
       licenses.push({
         name: pkgJson.name,
@@ -139,7 +141,7 @@ export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, fail
         license: parseLicense(pkgJson),
         licenseText,
       });
-    }));
+    }
 
     licenses.sort((a, b) => a.name.localeCompare(b.name));
 

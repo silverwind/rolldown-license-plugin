@@ -12,9 +12,11 @@ import {licensePlugin} from "rolldown-license-plugin";
 export default {
   plugins: [
     licensePlugin({
-      done(deps) {
-        console.info(deps);
-        // => [{name, version, license, licenseText}]
+      done(deps, context) {
+        const content = deps.map(dep => (
+          `${dep.name} ${dep.version} (${dep.license})\n${dep.licenseText}`
+        )).join("\n\n");
+        context.emitFile({type: "asset", fileName: "licenses.txt", source: content});
       },
     }),
   ],

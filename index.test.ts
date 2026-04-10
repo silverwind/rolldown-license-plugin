@@ -2,6 +2,8 @@ import {mkdirSync, rmSync, writeFileSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {build} from "rolldown";
+import {build as tsdownBuild} from "tsdown";
+import {build as viteBuild} from "vite";
 import {licensePlugin} from "./index.ts";
 
 import type {LicenseInfo} from "./index.ts";
@@ -225,4 +227,54 @@ test("many packages with scoped names and diverse licenses", async () => {
   expect(result.map(({name, version, license, licenseText}) => ({
     name, version, license, hasText: licenseText.length > 0,
   }))).toEqual(manyDeps);
+});
+
+test("works with tsdown", async () => {
+  let result: LicenseInfo[] = [];
+  const outDir = join(tmpdir(), `tsdown-test-${Date.now()}`);
+  await tsdownBuild({
+    config: false,
+    entry: [join(fixturesDir, "entry.js")],
+    plugins: [licensePlugin({done(licenses) { result = licenses; }})],
+    inputOptions: {
+      resolve: {
+        modules: [join(fixturesDir, "node_modules")],
+      },
+    },
+    outDir,
+    dts: false,
+  });
+  rmSync(outDir, {recursive: true, force: true});
+
+  expect(result).toHaveLength(5);
+  expect(result[0]).toEqual({
+    name: "test-pkg-a",
+    version: "1.0.0",
+    license: "MIT",
+    licenseText: expect.stringContaining("MIT License"),
+  });
+});
+
+test("works with vite", async () => {
+  let result: LicenseInfo[] = [];
+  await viteBuild({
+    root: fixturesDir,
+    plugins: [licensePlugin({done(licenses) { result = licenses; }})],
+    build: {
+      lib: {
+        entry: join(fixturesDir, "entry.js"),
+        formats: ["es"],
+      },
+      write: false,
+    },
+    logLevel: "silent",
+  });
+
+  expect(result).toHaveLength(5);
+  expect(result[0]).toEqual({
+    name: "test-pkg-a",
+    version: "1.0.0",
+    license: "MIT",
+    licenseText: expect.stringContaining("MIT License"),
+  });
 });

@@ -1,4 +1,4 @@
-import {readFileSync, readdirSync} from "node:fs";
+import {readFileSync, readdirSync, existsSync} from "node:fs";
 import {join, sep} from "node:path";
 import type {Plugin, PluginContext} from "rolldown";
 
@@ -125,14 +125,10 @@ export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, fail
 
       let licenseText = "";
       try {
-        licenseText = readFileSync(join(dir, "LICENSE"), "utf8");
-      } catch {
-        try {
-          const files = readdirSync(dir);
-          const licenseFile = files.find((entry) => match.test(entry));
-          if (licenseFile) licenseText = readFileSync(join(dir, licenseFile), "utf8");
-        } catch {}
-      }
+        const licenseFile = existsSync(join(dir, "LICENSE")) ? "LICENSE" :
+          readdirSync(dir).find((entry) => match.test(entry));
+        if (licenseFile) licenseText = readFileSync(join(dir, licenseFile), "utf8");
+      } catch {}
       if (wrapText && licenseText) licenseText = wrap(licenseText, wrapText).trim();
 
       licenses.push({
@@ -143,7 +139,7 @@ export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, fail
       });
     }
 
-    licenses.sort((a, b) => a.name.localeCompare(b.name));
+    licenses.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
     if (allow) {
       const errors: string[] = [];

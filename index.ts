@@ -23,7 +23,7 @@ export type RolldownLicensePluginOpts = {
   /** Regex to match license filenames. Default: `/^((UN)?LICEN(S|C)E|COPYING).*$/i` */
   match?: RegExp;
   /** When set, word-wrap `licenseText` to this column width */
-  wrapText?: number;
+  wrapLicenseText?: number;
   /** Validate each dependency's license. Return `false` to reject it */
   allow?: (license: LicenseInfo) => boolean;
   /** Throw a build error when a dependency has an incompatible license. Default: `false` (warn only) */
@@ -97,7 +97,7 @@ function findPkgRoot(fsPath: string): string | null {
 }
 
 /** Rolldown plugin that extracts license information from bundled dependencies */
-export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, failOnViolation = false, failOnUnlicensed = false}: RolldownLicensePluginOpts): Plugin => ({
+export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allow, failOnViolation = false, failOnUnlicensed = false}: RolldownLicensePluginOpts): Plugin => ({
   name: "rolldown-license-plugin",
   async generateBundle(_opts, bundle) {
     const roots = new Set<string>();
@@ -129,7 +129,7 @@ export const licensePlugin = ({done, match = defaultMatch, wrapText, allow, fail
           readdirSync(dir).find((entry) => match.test(entry));
         if (licenseFile) licenseText = readFileSync(join(dir, licenseFile), "utf8");
       } catch {}
-      if (wrapText && licenseText) licenseText = wrap(licenseText, wrapText).trim();
+      if (wrapLicenseText && licenseText) licenseText = wrap(licenseText, wrapLicenseText).trim();
 
       licenses.push({
         name: pkgJson.name,

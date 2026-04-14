@@ -46,7 +46,7 @@ Default: `/^((UN)?LICEN(S|C)E|COPYING).*$/i`
 
 Regex to match license filenames in package directories.
 
-#### `opts.wrapText`
+#### `opts.wrapLicenseText`
 
 Type: `number`
 

@@ -62,9 +62,9 @@ test("collects licenses from bundled dependencies", async () => {
   });
 });
 
-test("wrapText wraps license text to specified width", async () => {
+test("wrapLicenseText wraps license text to specified width", async () => {
   let result: LicenseInfo[] = [];
-  await buildWithPlugin({done(licenses) { result = licenses; }, wrapText: 80});
+  await buildWithPlugin({done(licenses) { result = licenses; }, wrapLicenseText: 80});
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   for (const line of pkg.licenseText.split("\n")) {
@@ -74,9 +74,9 @@ test("wrapText wraps license text to specified width", async () => {
   expect(pkg.licenseText).toContain("\n");
 });
 
-test("wrapText preserves blank lines", async () => {
+test("wrapLicenseText preserves blank lines", async () => {
   let result: LicenseInfo[] = [];
-  await buildWithPlugin({done(licenses) { result = licenses; }, wrapText: 80});
+  await buildWithPlugin({done(licenses) { result = licenses; }, wrapLicenseText: 80});
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   expect(pkg.licenseText).toContain("\n\n");

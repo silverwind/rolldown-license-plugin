@@ -4,7 +4,7 @@ import {tmpdir} from "node:os";
 import {build} from "rolldown";
 import {build as tsdownBuild} from "tsdown";
 import {build as viteBuild} from "vite";
-import {licensePlugin} from "./index.ts";
+import {licensePlugin, findPkgRoot} from "./index.ts";
 import type {LicenseInfo} from "./index.ts";
 
 const fixturesDir = join(import.meta.dirname, "fixtures");
@@ -276,4 +276,21 @@ test("works with vite", async () => {
     license: "MIT",
     licenseText: expect.stringContaining("MIT License"),
   });
+});
+
+test("findPkgRoot resolves package roots", () => {
+  expect(findPkgRoot("/x/node_modules/pkg/lib/foo.js")).toBe("/x/node_modules/pkg");
+  expect(findPkgRoot("/x/node_modules/pkg/index.js")).toBe("/x/node_modules/pkg");
+  expect(findPkgRoot("/x/node_modules/pkg")).toBe("/x/node_modules/pkg");
+  expect(findPkgRoot("/x/node_modules/@scope/pkg/lib/foo.js")).toBe("/x/node_modules/@scope/pkg");
+  expect(findPkgRoot("/x/node_modules/@scope/pkg")).toBe("/x/node_modules/@scope/pkg");
+  expect(findPkgRoot("/x/node_modules/a/node_modules/b/lib/foo.js")).toBe("/x/node_modules/a/node_modules/b");
+  expect(findPkgRoot("/x/node_modules/@s/a/node_modules/@t/b/foo.js")).toBe("/x/node_modules/@s/a/node_modules/@t/b");
+});
+
+test("findPkgRoot returns null for invalid paths", () => {
+  expect(findPkgRoot("/x/no-modules/foo.js")).toBeNull();
+  expect(findPkgRoot("/x/node_modules/@scope")).toBeNull();
+  expect(findPkgRoot("/x/node_modules/@")).toBeNull();
+  expect(findPkgRoot("")).toBeNull();
 });

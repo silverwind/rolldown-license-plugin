@@ -79,21 +79,20 @@ function parseLicense(pkgJson: PkgJson): string {
 }
 
 const nmSep = "/node_modules/";
+const needsPathNormalize = sep !== "/";
 /** Resolve the package root directory from a file path inside node_modules */
-function findPkgRoot(fsPath: string): string | null {
-  const p = sep !== "/" ? fsPath.replaceAll(sep, "/") : fsPath;
+export function findPkgRoot(fsPath: string): string | null {
+  const p = needsPathNormalize ? fsPath.replaceAll(sep, "/") : fsPath;
   const nmIdx = p.lastIndexOf(nmSep);
   if (nmIdx === -1) return null;
   const base = nmIdx + nmSep.length;
-  const rest = p.slice(base);
-  if (rest.startsWith("@")) {
-    const firstSlash = rest.indexOf("/");
+  const firstSlash = p.indexOf("/", base);
+  if (p.startsWith("@", base)) {
     if (firstSlash === -1) return null;
-    const secondSlash = rest.indexOf("/", firstSlash + 1);
-    return p.slice(0, base) + rest.slice(0, secondSlash === -1 ? rest.length : secondSlash);
+    const secondSlash = p.indexOf("/", firstSlash + 1);
+    return secondSlash === -1 ? p : p.slice(0, secondSlash);
   }
-  const firstSlash = rest.indexOf("/");
-  return p.slice(0, base) + rest.slice(0, firstSlash === -1 ? rest.length : firstSlash);
+  return firstSlash === -1 ? p : p.slice(0, firstSlash);
 }
 
 /** Rolldown plugin that extracts license information from bundled dependencies */
@@ -104,6 +103,7 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
     for (const chunk of Object.values(bundle)) {
       if (chunk.type !== "chunk") continue;
       for (const moduleId of Object.keys(chunk.modules)) {
+        if (moduleId[0] === "\0") continue;
         const qIdx = moduleId.indexOf("?");
         const root = findPkgRoot(qIdx === -1 ? moduleId : moduleId.slice(0, qIdx));
         if (root) roots.add(root);
@@ -125,9 +125,13 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
 
       let licenseText = "";
       try {
-        const licenseFile = existsSync(join(dir, "LICENSE")) ? "LICENSE" :
-          readdirSync(dir).find((entry) => match.test(entry));
-        if (licenseFile) licenseText = readFileSync(join(dir, licenseFile), "utf8");
+        const licensePath = join(dir, "LICENSE");
+        if (existsSync(licensePath)) {
+          licenseText = readFileSync(licensePath, "utf8");
+        } else {
+          const found = readdirSync(dir).find((entry) => match.test(entry));
+          if (found) licenseText = readFileSync(join(dir, found), "utf8");
+        }
       } catch {}
       if (wrapLicenseText && licenseText) licenseText = wrap(licenseText, wrapLicenseText).trim();
 

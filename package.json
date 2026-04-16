@@ -15,6 +15,10 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": "*",
+    "bun": "*"
+  },
   "peerDependencies": {
     "rolldown": "*"
   },

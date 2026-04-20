@@ -47,13 +47,15 @@ Regex to match license filenames in package directories.
 
 #### `opts.wrapLicenseText`
 
-Type: `number`
+Type: `number`\
+Default: `undefined` (no wrapping)
 
 When set, word-wrap `licenseText` to this column width.
 
 #### `opts.allow`
 
-Type: `(license: LicenseInfo) => boolean`
+Type: `(license: LicenseInfo) => boolean`\
+Default: `undefined` (no validation)
 
 Validate each dependency's license. Return `false` to reject it. By default, rejected dependencies are warned via `console.warn`. Use `failOnViolation` and `failOnUnlicensed` to throw build errors instead.
 

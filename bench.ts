@@ -3,6 +3,7 @@ import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {readFile, readdir} from "node:fs/promises";
 import {build} from "rolldown";
+import type {Plugin} from "rolldown";
 import {licensePlugin, findPkgRoot} from "./index.ts";
 import type {LicenseInfo} from "./index.ts";
 
@@ -18,7 +19,7 @@ async function bench(label: string, fn: () => unknown | Promise<unknown>) {
   }
   times.sort((a, b) => a - b);
   const med = times[Math.floor(times.length / 2)];
-  const min = Math.min(...times);
+  const min = times[0];
   console.info(`${label.padEnd(40)} med: ${med.toFixed(1)}ms  min: ${min.toFixed(1)}ms`);
 }
 
@@ -57,44 +58,36 @@ for (let idx = 0; idx < pkgCount; idx++) {
 }
 writeFileSync(join(tmpDir, "entry.js"), importLines.join("\n"));
 
+const runBuild = (plugins: Plugin[]) => build({
+  input: join(tmpDir, "entry.js"),
+  resolve: {modules: [nmDir]},
+  write: false, logLevel: "silent",
+  plugins,
+});
+
 try {
   console.info("Building bundle...");
   let bundleResult: LicenseInfo[] = [];
-  await build({
-    input: join(tmpDir, "entry.js"),
-    resolve: {modules: [nmDir]},
-    write: false, logLevel: "silent",
-    plugins: [licensePlugin({done(licenses) { bundleResult = licenses; }})],
-  });
+  await runBuild([licensePlugin({done(licenses) { bundleResult = licenses; }})]);
   console.info(`Found ${bundleResult.length} packages with ${bundleResult.filter((entry) => entry.licenseText).length} license files\n`);
 
   await bench("full build + plugin", async () => {
-    await build({
-      input: join(tmpDir, "entry.js"),
-      resolve: {modules: [nmDir]},
-      write: false, logLevel: "silent",
-      plugins: [licensePlugin({done() {}})],
-    });
+    await runBuild([licensePlugin({done() {}})]);
   });
 
   type FakeBundle = Record<string, {type: string, modules: Record<string, object>}>;
   const capturedBundle: FakeBundle = {};
-  await build({
-    input: join(tmpDir, "entry.js"),
-    resolve: {modules: [nmDir]},
-    write: false, logLevel: "silent",
-    plugins: [{
-      name: "capture",
-      generateBundle(_opts, bundle) {
-        for (const [key, chunk] of Object.entries(bundle)) {
-          if (chunk.type !== "chunk") continue;
-          const modules: Record<string, object> = {};
-          for (const moduleId of Object.keys(chunk.modules)) modules[moduleId] = {};
-          capturedBundle[key] = {type: "chunk", modules};
-        }
-      },
-    }],
-  });
+  await runBuild([{
+    name: "capture",
+    generateBundle(_opts, bundle) {
+      for (const [key, chunk] of Object.entries(bundle)) {
+        if (chunk.type !== "chunk") continue;
+        const modules: Record<string, object> = {};
+        for (const moduleId of Object.keys(chunk.modules)) modules[moduleId] = {};
+        capturedBundle[key] = {type: "chunk", modules};
+      }
+    },
+  }]);
 
   const moduleCount = Object.values(capturedBundle).reduce((sum, chunk) => sum + Object.keys(chunk.modules).length, 0);
   console.info(`\nCaptured bundle: ${moduleCount} modules`);

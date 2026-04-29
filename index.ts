@@ -1,4 +1,4 @@
-import {readFileSync, readdirSync, existsSync} from "node:fs";
+import {readFile, readdir} from "node:fs/promises";
 import {join, sep} from "node:path";
 import type {Plugin, PluginContext} from "rolldown";
 
@@ -110,40 +110,39 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       }
     }
 
-    const seen = new Set<string>();
-    const licenses: LicenseInfo[] = [];
-
-    for (const dir of roots) {
+    const reads = await Promise.all(Array.from(roots, async (dir) => {
       let pkgJson: PkgJson;
       try {
-        pkgJson = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as PkgJson;
-      } catch { continue; }
-      if (!pkgJson.name) continue;
+        pkgJson = JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as PkgJson;
+      } catch { return null; }
+      if (!pkgJson.name) return null;
+      let licenseText = "";
+      try {
+        const found = (await readdir(dir)).find((entry) => match.test(entry));
+        if (found) licenseText = await readFile(join(dir, found), "utf8");
+      } catch {}
+      return {pkgJson, licenseText};
+    }));
+
+    const seen = new Set<string>();
+    const licenses: LicenseInfo[] = [];
+    for (const item of reads) {
+      if (!item) continue;
+      const {pkgJson} = item;
       const key = `${pkgJson.name}@${pkgJson.version ?? ""}`;
       if (seen.has(key)) continue;
       seen.add(key);
-
-      let licenseText = "";
-      try {
-        const licensePath = join(dir, "LICENSE");
-        if (existsSync(licensePath)) {
-          licenseText = readFileSync(licensePath, "utf8");
-        } else {
-          const found = readdirSync(dir).find((entry) => match.test(entry));
-          if (found) licenseText = readFileSync(join(dir, found), "utf8");
-        }
-      } catch {}
-      if (wrapLicenseText && licenseText) licenseText = wrap(licenseText, wrapLicenseText).trim();
-
+      const licenseText = wrapLicenseText && item.licenseText ?
+        wrap(item.licenseText, wrapLicenseText).trim() : item.licenseText;
       licenses.push({
-        name: pkgJson.name,
+        name: pkgJson.name!,
         version: pkgJson.version ?? "",
         license: parseLicense(pkgJson),
         licenseText,
       });
     }
 
-    licenses.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    licenses.sort((a, b) => a.name.localeCompare(b.name));
 
     if (allow) {
       const errors: string[] = [];

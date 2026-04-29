@@ -39,7 +39,7 @@ type PkgJson = {name?: string, version?: string, license?: PkgJsonLicense, licen
 export function wrap(text: string, width: number): string {
   const lines: string[] = [];
   for (const rawLine of text.replace(/\r/g, "").split("\n")) {
-    const inputLine = rawLine.replace(/\t/g, (_, offset) => " ".repeat(8 - (offset % 8)));
+    const inputLine = rawLine.replace(/\t/g, (_tab, offset) => " ".repeat(8 - (offset % 8)));
     const trimmed = inputLine.trim();
     if (trimmed.length <= width) {
       lines.push(trimmed);
@@ -82,17 +82,17 @@ const nmSep = "/node_modules/";
 const needsPathNormalize = sep !== "/";
 /** Resolve the package root directory from a file path inside node_modules */
 export function findPkgRoot(fsPath: string): string | null {
-  const p = needsPathNormalize ? fsPath.replaceAll(sep, "/") : fsPath;
-  const nmIdx = p.lastIndexOf(nmSep);
+  const normalized = needsPathNormalize ? fsPath.replaceAll(sep, "/") : fsPath;
+  const nmIdx = normalized.lastIndexOf(nmSep);
   if (nmIdx === -1) return null;
   const base = nmIdx + nmSep.length;
-  const firstSlash = p.indexOf("/", base);
-  if (p.startsWith("@", base)) {
+  const firstSlash = normalized.indexOf("/", base);
+  if (normalized.startsWith("@", base)) {
     if (firstSlash === -1) return null;
-    const secondSlash = p.indexOf("/", firstSlash + 1);
-    return secondSlash === -1 ? p : p.slice(0, secondSlash);
+    const secondSlash = normalized.indexOf("/", firstSlash + 1);
+    return secondSlash === -1 ? normalized : normalized.slice(0, secondSlash);
   }
-  return firstSlash === -1 ? p : p.slice(0, firstSlash);
+  return firstSlash === -1 ? normalized : normalized.slice(0, firstSlash);
 }
 
 /** Rolldown plugin that extracts license information from bundled dependencies */

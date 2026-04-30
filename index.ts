@@ -2,7 +2,7 @@ import {readFile, readdir} from "node:fs/promises";
 import {join, sep} from "node:path";
 import type {Plugin, PluginContext} from "rolldown";
 
-const defaultMatch = /^((UN)?LICEN(S|C)E|COPYING).*$/i;
+export const defaultMatch = /^((UN)?LICEN(S|C)E|COPYING).*$/i;
 
 /** License information for a single bundled dependency */
 export type LicenseInfo = {
@@ -111,16 +111,16 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
     }
 
     const reads = await Promise.all(Array.from(roots, async (dir) => {
+      const [pkgRaw, entries] = await Promise.all([
+        readFile(join(dir, "package.json"), "utf8").catch(() => null),
+        readdir(dir).catch(() => null),
+      ]);
+      if (pkgRaw === null) return null;
       let pkgJson: PkgJson;
-      try {
-        pkgJson = JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as PkgJson;
-      } catch { return null; }
+      try { pkgJson = JSON.parse(pkgRaw) as PkgJson; } catch { return null; }
       if (!pkgJson.name) return null;
-      let licenseText = "";
-      try {
-        const found = (await readdir(dir)).find((entry) => match.test(entry));
-        if (found) licenseText = await readFile(join(dir, found), "utf8");
-      } catch {}
+      const found = entries?.find((entry) => match.test(entry));
+      const licenseText = found ? await readFile(join(dir, found), "utf8").catch(() => "") : "";
       return {pkgJson, licenseText};
     }));
 

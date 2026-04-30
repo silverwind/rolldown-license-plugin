@@ -4,7 +4,7 @@ import {tmpdir} from "node:os";
 import {readFile, readdir} from "node:fs/promises";
 import {build} from "rolldown";
 import type {Plugin} from "rolldown";
-import {licensePlugin, findPkgRoot} from "./index.ts";
+import {licensePlugin, findPkgRoot, defaultMatch} from "./index.ts";
 import type {LicenseInfo} from "./index.ts";
 
 const iterations = 10;
@@ -97,8 +97,6 @@ try {
     await (plugin as any).generateBundle({}, capturedBundle);
   });
 
-  const licenseRe = /^((UN)?LICEN(S|C)E|COPYING).*$/i;
-
   const benchDirs: string[] = [];
   {
     const roots = new Set<string>();
@@ -127,7 +125,7 @@ try {
     await Promise.all(benchDirs.map(async (dir) => {
       try {
         const files = await readdir(dir);
-        const found = files.find((entry) => licenseRe.test(entry));
+        const found = files.find((entry) => defaultMatch.test(entry));
         if (found) await readFile(join(dir, found), "utf8");
       } catch {}
     }));
@@ -137,7 +135,7 @@ try {
     for (const dir of benchDirs) {
       try {
         const files = readdirSync(dir);
-        const found = files.find((entry) => licenseRe.test(entry));
+        const found = files.find((entry) => defaultMatch.test(entry));
         if (found) readFileSync(join(dir, found), "utf8");
       } catch {}
     }

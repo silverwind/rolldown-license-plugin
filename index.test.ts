@@ -1,4 +1,4 @@
-import {mkdirSync, rmSync, writeFileSync} from "node:fs";
+import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {build} from "rolldown";
@@ -9,20 +9,21 @@ import type {LicenseInfo} from "./index.ts";
 
 const fixturesDir = join(import.meta.dirname, "fixtures");
 
-function buildWithPlugin(opts: Partial<Parameters<typeof licensePlugin>[0]> = {}) {
-  return build({
+async function buildWithPlugin(opts: Partial<Omit<Parameters<typeof licensePlugin>[0], "done">> = {}): Promise<LicenseInfo[]> {
+  let result: LicenseInfo[] = [];
+  await build({
     input: join(fixturesDir, "entry.js"),
     resolve: {
       modules: [join(fixturesDir, "node_modules")],
     },
     write: false,
-    plugins: [licensePlugin({done() {}, ...opts})],
+    plugins: [licensePlugin({...opts, done(licenses) { result = licenses; }})],
   });
+  return result;
 }
 
 test("collects licenses from bundled dependencies", async () => {
-  let result: LicenseInfo[] = [];
-  await buildWithPlugin({done(licenses) { result = licenses; }});
+  const result = await buildWithPlugin();
 
   expect(result).toHaveLength(5);
 
@@ -63,8 +64,7 @@ test("collects licenses from bundled dependencies", async () => {
 });
 
 test("wrapLicenseText wraps license text to specified width", async () => {
-  let result: LicenseInfo[] = [];
-  await buildWithPlugin({done(licenses) { result = licenses; }, wrapLicenseText: 80});
+  const result = await buildWithPlugin({wrapLicenseText: 80});
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   for (const line of pkg.licenseText.split("\n")) {
@@ -75,19 +75,14 @@ test("wrapLicenseText wraps license text to specified width", async () => {
 });
 
 test("wrapLicenseText preserves blank lines", async () => {
-  let result: LicenseInfo[] = [];
-  await buildWithPlugin({done(licenses) { result = licenses; }, wrapLicenseText: 80});
+  const result = await buildWithPlugin({wrapLicenseText: 80});
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   expect(pkg.licenseText).toContain("\n\n");
 });
 
 test("allow warns by default without failing", async () => {
-  let result: LicenseInfo[] = [];
-  await buildWithPlugin({
-    done(licenses) { result = licenses; },
-    allow: (dep) => dep.license === "MIT",
-  });
+  const result = await buildWithPlugin({allow: (dep) => dep.license === "MIT"});
   expect(result).toHaveLength(5);
 });
 
@@ -106,9 +101,7 @@ test("failOnUnlicensed throws on missing license", async () => {
 });
 
 test("failOnViolation does not throw for unlicensed", async () => {
-  let result: LicenseInfo[] = [];
-  await buildWithPlugin({
-    done(licenses) { result = licenses; },
+  const result = await buildWithPlugin({
     allow: (dep) => Boolean(dep.license),
     failOnViolation: true,
   });
@@ -116,9 +109,7 @@ test("failOnViolation does not throw for unlicensed", async () => {
 });
 
 test("failOnUnlicensed does not throw for license mismatch", async () => {
-  let result: LicenseInfo[] = [];
-  await buildWithPlugin({
-    done(licenses) { result = licenses; },
+  const result = await buildWithPlugin({
     allow: (dep) => !dep.license || dep.license === "MIT",
     failOnUnlicensed: true,
   });
@@ -126,11 +117,7 @@ test("failOnUnlicensed does not throw for license mismatch", async () => {
 });
 
 test("allow passes when all licenses match", async () => {
-  let result: LicenseInfo[] = [];
-  await buildWithPlugin({
-    done(licenses) { result = licenses; },
-    allow: () => true,
-  });
+  const result = await buildWithPlugin({allow: () => true});
   expect(result).toHaveLength(5);
 });
 
@@ -206,7 +193,7 @@ const manyDeps: {name: string, version: string, license: string, hasText: boolea
 ];
 
 test("many packages with scoped names and diverse licenses", async () => {
-  const tmp = join(tmpdir(), `license-test-${Date.now()}`);
+  const tmp = mkdtempSync(join(tmpdir(), "license-test-"));
   const nm = join(tmp, "node_modules");
 
   const modules: Record<string, object> = {};
@@ -230,7 +217,7 @@ test("many packages with scoped names and diverse licenses", async () => {
 
 test("works with tsdown", async () => {
   let result: LicenseInfo[] = [];
-  const outDir = join(tmpdir(), `tsdown-test-${Date.now()}`);
+  const outDir = mkdtempSync(join(tmpdir(), "tsdown-test-"));
   await tsdownBuild({
     config: false,
     entry: [join(fixturesDir, "entry.js")],

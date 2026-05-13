@@ -97,19 +97,16 @@ try {
     await (plugin as any).generateBundle({}, capturedBundle);
   });
 
-  const benchDirs: string[] = [];
-  {
-    const roots = new Set<string>();
-    for (const chunk of Object.values(capturedBundle)) {
-      if (chunk.type !== "chunk") continue;
-      for (const moduleId of Object.keys(chunk.modules)) {
-        const qIdx = moduleId.indexOf("?");
-        const root = findPkgRoot(qIdx === -1 ? moduleId : moduleId.slice(0, qIdx));
-        if (root) roots.add(root);
-      }
+  const roots = new Set<string>();
+  for (const chunk of Object.values(capturedBundle)) {
+    if (chunk.type !== "chunk") continue;
+    for (const moduleId of Object.keys(chunk.modules)) {
+      const qIdx = moduleId.indexOf("?");
+      const root = findPkgRoot(qIdx === -1 ? moduleId : moduleId.slice(0, qIdx));
+      if (root) roots.add(root);
     }
-    for (const dir of roots) benchDirs.push(dir);
   }
+  const benchDirs = Array.from(roots);
 
   await bench("phase: pkg.json read", () => {
     let count = 0;

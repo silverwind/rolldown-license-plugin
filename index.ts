@@ -34,6 +34,9 @@ export type RolldownLicensePluginOpts = {
 
 type PkgJsonLicense = string | {type?: string};
 type PkgJson = {name?: string, version?: string, license?: PkgJsonLicense, licenses?: PkgJsonLicense[]};
+type Pending = {pkgJson: PkgJson, licenseRead: Promise<string>};
+
+const emptyText = Promise.resolve("");
 
 /** Word-wrap plain text to a specified column width */
 export function wrap(text: string, width: number): string {
@@ -110,33 +113,47 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       }
     }
 
-    const reads = await Promise.all(Array.from(roots, async (dir) => {
-      const [pkgRaw, entries] = await Promise.all([
-        readFile(join(dir, "package.json"), "utf8").catch(() => null),
-        readdir(dir).catch(() => null),
-      ]);
+    // Two-phase batched IO: kick off all package.json + readdir calls together, then
+    // all license-file reads together. Avoids per-package async overhead and gives the
+    // libuv thread pool uniform batches to chew through.
+    const dirs = Array.from(roots);
+    const [pkgRaws, dirEntries] = await Promise.all([
+      Promise.all(dirs.map((dir) => readFile(join(dir, "package.json"), "utf8").catch(() => null))),
+      Promise.all(dirs.map((dir) => readdir(dir).catch(() => null))),
+    ]);
+
+    const pending = dirs.map((dir, i): Pending | null => {
+      const pkgRaw = pkgRaws[i];
       if (pkgRaw === null) return null;
       let pkgJson: PkgJson;
       try { pkgJson = JSON.parse(pkgRaw) as PkgJson; } catch { return null; }
       if (!pkgJson.name) return null;
-      const found = entries?.find((entry) => match.test(entry));
-      const licenseText = found ? await readFile(join(dir, found), "utf8").catch(() => "") : "";
-      return {pkgJson, licenseText};
-    }));
+      const licenseFile = dirEntries[i]?.find((entry) => match.test(entry));
+      return {
+        pkgJson,
+        licenseRead: licenseFile ?
+          readFile(join(dir, licenseFile), "utf8").catch(() => "") :
+          emptyText,
+      };
+    });
+
+    const licenseTexts = await Promise.all(pending.map((p) => p?.licenseRead ?? emptyText));
 
     const seen = new Set<string>();
     const licenses: LicenseInfo[] = [];
-    for (const item of reads) {
-      if (!item) continue;
-      const {pkgJson} = item;
-      const key = `${pkgJson.name}@${pkgJson.version ?? ""}`;
+    for (let i = 0; i < pending.length; i++) {
+      const p = pending[i];
+      if (!p) continue;
+      const {pkgJson} = p;
+      const version = pkgJson.version ?? "";
+      const key = `${pkgJson.name}@${version}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const licenseText = wrapLicenseText && item.licenseText ?
-        wrap(item.licenseText, wrapLicenseText).trim() : item.licenseText;
+      const raw = licenseTexts[i];
+      const licenseText = wrapLicenseText && raw ? wrap(raw, wrapLicenseText).trim() : raw;
       licenses.push({
         name: pkgJson.name!,
-        version: pkgJson.version ?? "",
+        version,
         license: parseLicense(pkgJson),
         licenseText,
       });
@@ -152,11 +169,10 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
         const msg = entry.license ?
           `Dependency "${entry.name}" has an incompatible license: ${entry.license}` :
           `Dependency "${entry.name}" does not specify any license.`;
-        if (fail) errors.push(msg); else console.warn(msg);
+        if (fail) errors.push(msg);
+        else this.warn(msg);
       }
-      if (errors.length) {
-        throw new Error(errors.join("\n"));
-      }
+      if (errors.length) this.error(errors.join("\n"));
     }
 
     await done(licenses, this);

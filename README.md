@@ -57,7 +57,7 @@ When set, word-wrap `licenseText` to this column width.
 Type: `(license: LicenseInfo) => boolean`\
 Default: `undefined` (no validation)
 
-Validate each dependency's license. Return `false` to reject it. By default, rejected dependencies are warned via `console.warn`. Use `failOnViolation` and `failOnUnlicensed` to throw build errors instead.
+Validate each dependency's license. Return `false` to reject it. By default, rejected dependencies are reported via the rolldown plugin context's `warn`. Use `failOnViolation` and `failOnUnlicensed` to throw build errors instead.
 
 #### `opts.failOnViolation`
 

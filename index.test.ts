@@ -207,7 +207,8 @@ test("many packages with scoped names and diverse licenses", async () => {
 
   let result: LicenseInfo[] = [];
   const plugin = licensePlugin({done(licenses) { result = licenses; }});
-  await (plugin as any).generateBundle.call({}, {}, {chunk: {type: "chunk", modules}});
+  const ctx = {warn: () => {}, error: (msg: string) => { throw new Error(msg); }};
+  await (plugin as any).generateBundle.call(ctx, {}, {chunk: {type: "chunk", modules}});
   rmSync(tmp, {recursive: true});
 
   expect(result.map(({name, version, license, licenseText}) => ({

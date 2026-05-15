@@ -34,7 +34,6 @@ export type RolldownLicensePluginOpts = {
 
 type PkgJsonLicense = string | {type?: string};
 type PkgJson = {name?: string, version?: string, license?: PkgJsonLicense, licenses?: PkgJsonLicense[]};
-type Pending = {pkgJson: PkgJson, licenseRead: Promise<string>};
 
 const emptyText = Promise.resolve("");
 
@@ -42,27 +41,26 @@ const emptyText = Promise.resolve("");
 export function wrap(text: string, width: number): string {
   const lines: string[] = [];
   for (const rawLine of text.replace(/\r/g, "").split("\n")) {
-    const inputLine = rawLine.replace(/\t/g, (_tab, offset) => " ".repeat(8 - (offset % 8)));
-    const trimmed = inputLine.trim();
-    if (trimmed.length <= width) {
-      lines.push(trimmed);
+    const line = rawLine.replace(/\t/g, (_tab, offset) => " ".repeat(8 - (offset % 8))).trimEnd();
+    if (line.length <= width) {
+      lines.push(line);
       continue;
     }
     let pos = 0;
-    while (pos < trimmed.length) {
-      if (pos + width >= trimmed.length) {
-        lines.push(trimmed.slice(pos).trim());
+    while (pos < line.length) {
+      if (pos + width >= line.length) {
+        lines.push(line.slice(pos).trimEnd());
         break;
       }
-      let breakAt = trimmed.lastIndexOf(" ", pos + width);
+      let breakAt = line.lastIndexOf(" ", pos + width);
       if (breakAt <= pos) {
-        breakAt = trimmed.indexOf(" ", pos + width);
+        breakAt = line.indexOf(" ", pos + width);
         if (breakAt === -1) {
-          lines.push(trimmed.slice(pos).trim());
+          lines.push(line.slice(pos).trimEnd());
           break;
         }
       }
-      lines.push(trimmed.slice(pos, breakAt).trimEnd());
+      lines.push(line.slice(pos, breakAt).trimEnd());
       pos = breakAt + 1;
     }
   }
@@ -113,51 +111,45 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       }
     }
 
-    // Two-phase batched IO: kick off all package.json + readdir calls together, then
-    // all license-file reads together. Avoids per-package async overhead and gives the
-    // libuv thread pool uniform batches to chew through.
+    // Dedup by name@version before reading license files: pnpm and nested
+    // node_modules can surface the same package at multiple paths.
     const dirs = Array.from(roots);
     const [pkgRaws, dirEntries] = await Promise.all([
       Promise.all(dirs.map((dir) => readFile(join(dir, "package.json"), "utf8").catch(() => null))),
       Promise.all(dirs.map((dir) => readdir(dir).catch(() => null))),
     ]);
 
-    const pending = dirs.map((dir, i): Pending | null => {
-      const pkgRaw = pkgRaws[i];
-      if (pkgRaw === null) return null;
-      let pkgJson: PkgJson;
-      try { pkgJson = JSON.parse(pkgRaw) as PkgJson; } catch { return null; }
-      if (!pkgJson.name) return null;
-      const licenseFile = dirEntries[i]?.find((entry) => match.test(entry));
-      return {
-        pkgJson,
-        licenseRead: licenseFile ?
-          readFile(join(dir, licenseFile), "utf8").catch(() => "") :
-          emptyText,
-      };
-    });
-
-    const licenseTexts = await Promise.all(pending.map((p) => p?.licenseRead ?? emptyText));
-
     const seen = new Set<string>();
-    const licenses: LicenseInfo[] = [];
-    for (let i = 0; i < pending.length; i++) {
-      const p = pending[i];
-      if (!p) continue;
-      const {pkgJson} = p;
-      const version = pkgJson.version ?? "";
-      const key = `${pkgJson.name}@${version}`;
+    const unique: {dir: string, pkgJson: PkgJson, licenseFile?: string}[] = [];
+    for (let i = 0; i < dirs.length; i++) {
+      const pkgRaw = pkgRaws[i];
+      if (pkgRaw === null) continue;
+      let pkgJson: PkgJson;
+      try { pkgJson = JSON.parse(pkgRaw) as PkgJson; } catch { continue; }
+      if (!pkgJson.name) continue;
+      const key = `${pkgJson.name}@${pkgJson.version ?? ""}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const raw = licenseTexts[i];
-      const licenseText = wrapLicenseText && raw ? wrap(raw, wrapLicenseText).trim() : raw;
-      licenses.push({
-        name: pkgJson.name!,
-        version,
-        license: parseLicense(pkgJson),
-        licenseText,
+      unique.push({
+        dir: dirs[i],
+        pkgJson,
+        licenseFile: dirEntries[i]?.find((entry) => match.test(entry)),
       });
     }
+
+    const licenseTexts = await Promise.all(unique.map(({dir, licenseFile}) =>
+      licenseFile ? readFile(join(dir, licenseFile), "utf8").catch(() => "") : emptyText,
+    ));
+
+    const licenses: LicenseInfo[] = unique.map(({pkgJson}, i) => {
+      const raw = licenseTexts[i];
+      return {
+        name: pkgJson.name!,
+        version: pkgJson.version ?? "",
+        license: parseLicense(pkgJson),
+        licenseText: wrapLicenseText && raw ? wrap(raw, wrapLicenseText).trim() : raw,
+      };
+    });
 
     licenses.sort((a, b) => a.name.localeCompare(b.name));
 

@@ -109,7 +109,7 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       }
     }
 
-    // Dedup by name@version before per-package FS work: pnpm and nested
+    // Dedup by name@version before readdir/readFile: pnpm and nested
     // node_modules can surface the same package at multiple paths.
     const dirs = Array.from(roots);
     const pkgRaws = await Promise.all(

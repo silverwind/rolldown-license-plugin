@@ -132,10 +132,16 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       pkgs.push({dir: dirs[idx], name, version, license: parseLicense(pkgJson)});
     }
 
+    // Fast path: most packages name their license file exactly "LICENSE", so try that before readdir.
+    const probeDirect = match.test("LICENSE");
     const licenses: LicenseInfo[] = await Promise.all(pkgs.map(async ({dir, name, version, license}) => {
-      const entries = await readdir(dir).catch(() => null);
-      const file = entries?.find((entry) => match.test(entry));
-      const raw = file ? await readFile(join(dir, file), "utf8").catch(() => "") : "";
+      const read = (file: string) => readFile(join(dir, file), "utf8").catch(() => "");
+      let raw = probeDirect ? await read("LICENSE") : "";
+      if (!raw) {
+        const entries = await readdir(dir).catch(() => null);
+        const file = entries?.find((entry) => match.test(entry));
+        if (file) raw = await read(file);
+      }
       return {
         name,
         version,

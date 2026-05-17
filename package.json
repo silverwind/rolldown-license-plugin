@@ -31,9 +31,9 @@
   },
   "devDependencies": {
     "@types/node": "25.8.0",
-    "@typescript/native-preview": "7.0.0-dev.20260515.1",
+    "@typescript/native-preview": "7.0.0-dev.20260517.1",
     "eslint": "10.4.0",
-    "eslint-config-silverwind": "133.0.1",
+    "eslint-config-silverwind": "133.0.3",
     "jest-extended": "7.0.0",
     "rolldown": "1.0.1",
     "tsdown": "0.22.0",

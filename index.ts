@@ -35,8 +35,6 @@ export type RolldownLicensePluginOpts = {
 type PkgJsonLicense = string | {type?: string};
 type PkgJson = {name?: string, version?: string, license?: PkgJsonLicense, licenses?: PkgJsonLicense[]};
 
-const emptyText = Promise.resolve("");
-
 /** Word-wrap plain text to a specified column width */
 export function wrap(text: string, width: number): string {
   const lines: string[] = [];
@@ -111,45 +109,40 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       }
     }
 
-    // Dedup by name@version before reading license files: pnpm and nested
+    // Dedup by name@version before per-package FS work: pnpm and nested
     // node_modules can surface the same package at multiple paths.
     const dirs = Array.from(roots);
-    const [pkgRaws, dirEntries] = await Promise.all([
-      Promise.all(dirs.map((dir) => readFile(join(dir, "package.json"), "utf8").catch(() => null))),
-      Promise.all(dirs.map((dir) => readdir(dir).catch(() => null))),
-    ]);
+    const pkgRaws = await Promise.all(
+      dirs.map((dir) => readFile(join(dir, "package.json"), "utf8").catch(() => null)),
+    );
 
     const seen = new Set<string>();
-    const unique: {dir: string, pkgJson: PkgJson, licenseFile?: string}[] = [];
-    for (let i = 0; i < dirs.length; i++) {
-      const pkgRaw = pkgRaws[i];
+    const pkgs: {dir: string, name: string, version: string, license: string}[] = [];
+    for (let idx = 0; idx < dirs.length; idx++) {
+      const pkgRaw = pkgRaws[idx];
       if (pkgRaw === null) continue;
       let pkgJson: PkgJson;
       try { pkgJson = JSON.parse(pkgRaw) as PkgJson; } catch { continue; }
-      if (!pkgJson.name) continue;
-      const key = `${pkgJson.name}@${pkgJson.version ?? ""}`;
+      const name = pkgJson.name;
+      if (!name) continue;
+      const version = pkgJson.version ?? "";
+      const key = `${name}@${version}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      unique.push({
-        dir: dirs[i],
-        pkgJson,
-        licenseFile: dirEntries[i]?.find((entry) => match.test(entry)),
-      });
+      pkgs.push({dir: dirs[idx], name, version, license: parseLicense(pkgJson)});
     }
 
-    const licenseTexts = await Promise.all(unique.map(({dir, licenseFile}) =>
-      licenseFile ? readFile(join(dir, licenseFile), "utf8").catch(() => "") : emptyText,
-    ));
-
-    const licenses: LicenseInfo[] = unique.map(({pkgJson}, i) => {
-      const raw = licenseTexts[i];
+    const licenses: LicenseInfo[] = await Promise.all(pkgs.map(async ({dir, name, version, license}) => {
+      const entries = await readdir(dir).catch(() => null);
+      const file = entries?.find((entry) => match.test(entry));
+      const raw = file ? await readFile(join(dir, file), "utf8").catch(() => "") : "";
       return {
-        name: pkgJson.name!,
-        version: pkgJson.version ?? "",
-        license: parseLicense(pkgJson),
+        name,
+        version,
+        license,
         licenseText: wrapLicenseText && raw ? wrap(raw, wrapLicenseText).trim() : raw,
       };
-    });
+    }));
 
     licenses.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -157,12 +150,10 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       const errors: string[] = [];
       for (const entry of licenses) {
         if (allow(entry)) continue;
-        const fail = entry.license ? failOnViolation : failOnUnlicensed;
-        const msg = entry.license ?
-          `Dependency "${entry.name}" has an incompatible license: ${entry.license}` :
-          `Dependency "${entry.name}" does not specify any license.`;
-        if (fail) errors.push(msg);
-        else this.warn(msg);
+        const [msg, fail] = entry.license ?
+          [`Dependency "${entry.name}" has an incompatible license: ${entry.license}`, failOnViolation] :
+          [`Dependency "${entry.name}" does not specify any license.`, failOnUnlicensed];
+        if (fail) errors.push(msg); else this.warn(msg);
       }
       if (errors.length) this.error(errors.join("\n"));
     }

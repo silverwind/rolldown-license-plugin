@@ -150,16 +150,21 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       };
     }));
 
-    licenses.sort((a, b) => a.name.localeCompare(b.name));
+    licenses.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
     if (allow) {
       const errors: string[] = [];
       for (const entry of licenses) {
         if (allow(entry)) continue;
-        const [msg, fail] = entry.license ?
-          [`Dependency "${entry.name}" has an incompatible license: ${entry.license}`, failOnViolation] :
-          [`Dependency "${entry.name}" does not specify any license.`, failOnUnlicensed];
-        if (fail) errors.push(msg); else this.warn(msg);
+        if (!entry.license) {
+          const msg = `Dependency "${entry.name}" does not specify any license.`;
+          if (failOnUnlicensed) errors.push(msg);
+          else this.warn(msg);
+          continue;
+        }
+        const msg = `Dependency "${entry.name}" has an incompatible license: ${entry.license}`;
+        if (failOnViolation) errors.push(msg);
+        else this.warn(msg);
       }
       if (errors.length) this.error(errors.join("\n"));
     }

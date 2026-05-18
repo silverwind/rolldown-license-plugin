@@ -1,5 +1,5 @@
 import {readFile, readdir} from "node:fs/promises";
-import {join, sep} from "node:path";
+import {sep} from "node:path";
 import type {Plugin, PluginContext} from "rolldown";
 
 export const defaultMatch = /^((UN)?LICEN(S|C)E|COPYING).*$/i;
@@ -112,8 +112,9 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
     // Dedup by name@version before readdir/readFile: pnpm and nested
     // node_modules can surface the same package at multiple paths.
     const dirs = Array.from(roots);
+    // findPkgRoot returns forward-slash paths, so concat is cross-platform-safe and avoids path.join overhead.
     const pkgRaws = await Promise.all(
-      dirs.map((dir) => readFile(join(dir, "package.json"), "utf8").catch(() => null)),
+      dirs.map((dir) => readFile(`${dir}/package.json`, "utf8").catch(() => null)),
     );
 
     const seen = new Set<string>();
@@ -135,12 +136,11 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
     // Fast path: most packages name their license file exactly "LICENSE", so try that before readdir.
     const probeDirect = match.test("LICENSE");
     const licenses: LicenseInfo[] = await Promise.all(pkgs.map(async ({dir, name, version, license}) => {
-      const read = (file: string) => readFile(join(dir, file), "utf8").catch(() => "");
-      let raw = probeDirect ? await read("LICENSE") : "";
+      let raw = probeDirect ? await readFile(`${dir}/LICENSE`, "utf8").catch(() => "") : "";
       if (!raw) {
         const entries = await readdir(dir).catch(() => null);
         const file = entries?.find((entry) => match.test(entry));
-        if (file) raw = await read(file);
+        if (file) raw = await readFile(`${dir}/${file}`, "utf8").catch(() => "");
       }
       return {
         name,

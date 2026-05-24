@@ -7,9 +7,10 @@ Rolldown plugin to extract dependency licenses and optionally validate them. Zer
 ## Usage
 
 ```js
+import {defineConfig} from "rolldown";
 import {licensePlugin} from "rolldown-license-plugin";
 
-export default {
+export default defineConfig({
   plugins: [
     licensePlugin({
       done(deps, context) {
@@ -23,8 +24,10 @@ export default {
       },
     }),
   ],
-};
+});
 ```
+
+This also works with Vite, using `defineConfig` from `vite`.
 
 ## API
 

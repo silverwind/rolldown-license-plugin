@@ -78,10 +78,9 @@ function parseLicense(pkgJson: PkgJson): string {
 }
 
 const nmSep = "/node_modules/";
-const needsPathNormalize = sep !== "/";
 /** Resolve the package root directory from a file path inside node_modules */
 export function findPkgRoot(fsPath: string): string | null {
-  const normalized = needsPathNormalize ? fsPath.replaceAll(sep, "/") : fsPath;
+  const normalized = sep === "/" ? fsPath : fsPath.replaceAll(sep, "/");
   const nmIdx = normalized.lastIndexOf(nmSep);
   if (nmIdx === -1) return null;
   const base = nmIdx + nmSep.length;
@@ -111,26 +110,24 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
 
     // Dedup by name@version before readdir/readFile: pnpm and nested
     // node_modules can surface the same package at multiple paths.
-    const dirs = Array.from(roots);
     // findPkgRoot returns forward-slash paths, so concat is cross-platform-safe and avoids path.join overhead.
-    const pkgRaws = await Promise.all(
-      dirs.map((dir) => readFile(`${dir}/package.json`, "utf8").catch(() => null)),
+    const entries = await Promise.all(
+      Array.from(roots, async (dir) => ({dir, raw: await readFile(`${dir}/package.json`, "utf8").catch(() => null)})),
     );
 
     const seen = new Set<string>();
     const pkgs: {dir: string, name: string, version: string, license: string}[] = [];
-    for (let idx = 0; idx < dirs.length; idx++) {
-      const pkgRaw = pkgRaws[idx];
-      if (pkgRaw === null) continue;
+    for (const {dir, raw} of entries) {
+      if (raw === null) continue;
       let pkgJson: PkgJson;
-      try { pkgJson = JSON.parse(pkgRaw) as PkgJson; } catch { continue; }
+      try { pkgJson = JSON.parse(raw) as PkgJson; } catch { continue; }
       const name = pkgJson.name;
       if (!name) continue;
       const version = pkgJson.version ?? "";
       const key = `${name}@${version}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      pkgs.push({dir: dirs[idx], name, version, license: parseLicense(pkgJson)});
+      pkgs.push({dir, name, version, license: parseLicense(pkgJson)});
     }
 
     // Fast path: most packages name their license file exactly "LICENSE", so try that before readdir.
@@ -138,8 +135,8 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
     const licenses: LicenseInfo[] = await Promise.all(pkgs.map(async ({dir, name, version, license}) => {
       let raw = probeDirect ? await readFile(`${dir}/LICENSE`, "utf8").catch(() => "") : "";
       if (!raw) {
-        const entries = await readdir(dir).catch(() => null);
-        const file = entries?.find((entry) => match.test(entry));
+        const files = await readdir(dir).catch(() => null);
+        const file = files?.find((entry) => match.test(entry));
         if (file) raw = await readFile(`${dir}/${file}`, "utf8").catch(() => "");
       }
       return {
@@ -156,14 +153,11 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       const errors: string[] = [];
       for (const entry of licenses) {
         if (allow(entry)) continue;
-        if (!entry.license) {
-          const msg = `Dependency "${entry.name}" does not specify any license.`;
-          if (failOnUnlicensed) errors.push(msg);
-          else this.warn(msg);
-          continue;
-        }
-        const msg = `Dependency "${entry.name}" has an incompatible license: ${entry.license}`;
-        if (failOnViolation) errors.push(msg);
+        const unlicensed = !entry.license;
+        const msg = unlicensed ?
+          `Dependency "${entry.name}" does not specify any license.` :
+          `Dependency "${entry.name}" has an incompatible license: ${entry.license}`;
+        if (unlicensed ? failOnUnlicensed : failOnViolation) errors.push(msg);
         else this.warn(msg);
       }
       if (errors.length) this.error(errors.join("\n"));

@@ -111,9 +111,11 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
     // Dedup by name@version before readdir/readFile: pnpm and nested
     // node_modules can surface the same package at multiple paths.
     // findPkgRoot returns forward-slash paths, so concat is cross-platform-safe and avoids path.join overhead.
-    const entries = await Promise.all(
-      Array.from(roots, async (dir) => ({dir, raw: await readFile(`${dir}/package.json`, "utf8").catch(() => null)})),
-    );
+    const entries = await Promise.all(Array.from(roots, async (dir) => {
+      let raw: string | null = null;
+      try { raw = await readFile(`${dir}/package.json`, "utf8"); } catch { /* missing or unreadable */ }
+      return {dir, raw};
+    }));
 
     const seen = new Set<string>();
     const pkgs: {dir: string, name: string, version: string, license: string}[] = [];
@@ -133,11 +135,17 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
     // Fast path: most packages name their license file exactly "LICENSE", so try that before readdir.
     const probeDirect = match.test("LICENSE");
     const licenses: LicenseInfo[] = await Promise.all(pkgs.map(async ({dir, name, version, license}) => {
-      let raw = probeDirect ? await readFile(`${dir}/LICENSE`, "utf8").catch(() => "") : "";
+      let raw = "";
+      if (probeDirect) {
+        try { raw = await readFile(`${dir}/LICENSE`, "utf8"); } catch { /* no direct LICENSE */ }
+      }
       if (!raw) {
-        const files = await readdir(dir).catch(() => null);
+        let files: string[] | null = null;
+        try { files = await readdir(dir); } catch { /* unreadable dir */ }
         const file = files?.find((entry) => match.test(entry));
-        if (file) raw = await readFile(`${dir}/${file}`, "utf8").catch(() => "");
+        if (file) {
+          try { raw = await readFile(`${dir}/${file}`, "utf8"); } catch { /* unreadable file */ }
+        }
       }
       return {
         name,
@@ -147,7 +155,7 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
       };
     }));
 
-    licenses.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    licenses.sort((a, b) => a.name.localeCompare(b.name));
 
     if (allow) {
       const errors: string[] = [];

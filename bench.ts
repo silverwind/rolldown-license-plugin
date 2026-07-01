@@ -53,8 +53,7 @@ for (let idx = 0; idx < pkgCount; idx++) {
 const importLines: string[] = [];
 for (let idx = 0; idx < pkgCount; idx++) {
   const name = `bench-pkg-${String(idx).padStart(4, "0")}`;
-  importLines.push(`export {x${idx}} from "${name}";`);
-  importLines.push(`export {u${idx}} from "${name}/lib/util.js";`);
+  importLines.push(`export {x${idx}} from "${name}";`, `export {u${idx}} from "${name}/lib/util.js";`);
 }
 writeFileSync(join(tmpDir, "entry.js"), importLines.join("\n"));
 

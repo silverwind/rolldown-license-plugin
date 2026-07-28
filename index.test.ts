@@ -4,7 +4,7 @@ import {tmpdir} from "node:os";
 import {build} from "rolldown";
 import {build as tsdownBuild} from "tsdown";
 import {build as viteBuild} from "vite";
-import {licensePlugin, findPkgRoot} from "./index.ts";
+import {licensePlugin, findPkgRoot, wrap} from "./index.ts";
 import type {LicenseInfo} from "./index.ts";
 
 const fixturesDir = join(import.meta.dirname, "fixtures");
@@ -79,6 +79,33 @@ test("wrapLicenseText preserves blank lines", async () => {
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   expect(pkg.licenseText).toContain("\n\n");
+});
+
+test("wrap expands tabs to 8-column stops", () => {
+  expect(wrap("a\tb\tc", 80)).toBe(`a${" ".repeat(7)}b${" ".repeat(7)}c`);
+  expect(wrap("\tx", 80)).toBe(`${" ".repeat(8)}x`);
+});
+
+// license files are named "LICENSE.md" so every package takes the readdir path, where a
+// stateful `lastIndex` from a previous `test` call would make matches alternate
+test("match with the global flag stays stateless", async () => {
+  const tmp = mkdtempSync(join(tmpdir(), "license-flags-"));
+  const modules: Record<string, object> = {};
+  for (let idx = 0; idx < 6; idx++) {
+    const dir = join(tmp, "node_modules", `flag-pkg-${idx}`);
+    mkdirSync(dir, {recursive: true});
+    writeFileSync(join(dir, "package.json"), JSON.stringify({name: `flag-pkg-${idx}`, version: "1.0.0", license: "MIT"}));
+    writeFileSync(join(dir, "LICENSE.md"), "MIT License");
+    modules[join(dir, "index.js")] = {};
+  }
+
+  let result: LicenseInfo[] = [];
+  const plugin = licensePlugin({match: /^licen[sc]e/gi, done(licenses) { result = licenses; }});
+  await (plugin as any).generateBundle.call({}, {}, {chunk: {type: "chunk", modules}});
+  rmSync(tmp, {recursive: true});
+
+  expect(result).toHaveLength(6);
+  for (const entry of result) expect(entry.licenseText).toBe("MIT License");
 });
 
 test("allow warns by default without failing", async () => {

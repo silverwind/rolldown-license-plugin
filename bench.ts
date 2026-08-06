@@ -7,20 +7,20 @@ import type {Plugin} from "rolldown";
 import {licensePlugin, findPkgRoot, defaultMatch} from "./index.ts";
 import type {LicenseInfo} from "./index.ts";
 
-const iterations = 10;
+const runs = Number(process.env.BENCH_RUNS) || 10;
+const filter = process.env.BENCH_FILTER;
 
-async function bench(label: string, fn: () => unknown | Promise<unknown>) {
+async function bench(name: string, fn: () => unknown | Promise<unknown>) {
+  if (filter && !name.includes(filter)) return;
   await fn(); // warmup
   const times: number[] = [];
-  for (let idx = 0; idx < iterations; idx++) {
+  for (let run = 0; run < runs; run++) {
     const start = performance.now();
     await fn();
     times.push(performance.now() - start);
   }
   times.sort((a, b) => a - b);
-  const med = times[Math.floor(times.length / 2)];
-  const min = times[0];
-  console.info(`${label.padEnd(40)} med: ${med.toFixed(1)}ms  min: ${min.toFixed(1)}ms`);
+  console.info(`${name.padEnd(40)} med ${times[runs >> 1].toFixed(1)}ms  min ${times[0].toFixed(1)}ms`);
 }
 
 const tmpDir = mkdtempSync(join(tmpdir(), "license-bench-"));

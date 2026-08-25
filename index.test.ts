@@ -96,7 +96,9 @@ test("match with the global flag stays stateless", async () => {
     mkdirSync(dir, {recursive: true});
     writeFileSync(join(dir, "package.json"), JSON.stringify({name: `flag-pkg-${idx}`, version: "1.0.0", license: "MIT"}));
     writeFileSync(join(dir, "LICENSE.md"), "MIT License");
-    modules[join(dir, "index.js")] = {};
+    // the query embeds another node_modules path, which resolves to the wrong package if not stripped
+    const id = join(dir, "index.js");
+    modules[idx === 0 ? `${id}?v=1&dep=${join(tmp, "node_modules", "flag-pkg-5", "index.js")}` : id] = {};
   }
 
   let result: LicenseInfo[] = [];
@@ -117,7 +119,8 @@ test("failOnViolation throws on license mismatch", async () => {
   await expect(buildWithPlugin({
     allow: (dep) => dep.license === "MIT",
     failOnViolation: true,
-  })).rejects.toThrow("incompatible license");
+    failOnUnlicensed: true,
+  })).rejects.toThrow(/incompatible license[\s\S]*does not specify any license/);
 });
 
 test("failOnUnlicensed throws on missing license", async () => {

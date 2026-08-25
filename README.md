@@ -2,7 +2,7 @@
 
 [![](https://img.shields.io/npm/v/rolldown-license-plugin.svg?style=flat)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://img.shields.io/npm/dm/rolldown-license-plugin.svg)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://packagephobia.com/badge?p=rolldown-license-plugin)](https://packagephobia.com/result?p=rolldown-license-plugin) [![](https://depx.co/api/badge/rolldown-license-plugin)](https://depx.co/pkg/rolldown-license-plugin)
 
-Rolldown plugin to extract dependency licenses and optionally validate them. Zero dependencies, optimized for performance.
+Rolldown/Vite plugin to extract dependency licenses and optionally validate them. Zero dependencies, optimized for performance.
 
 ## Usage
 
@@ -27,54 +27,24 @@ export default defineConfig({
 });
 ```
 
-This also works with Vite, using `defineConfig` from `vite`.
+For Vite, import `defineConfig` from `vite` instead of `rolldown`. Everything else is identical.
 
 ## API
 
 ### `licensePlugin(opts)`
 
-Returns the plugin.
-
-#### `opts.done`
-
-Type: `(licenses: LicenseInfo[], context: PluginContext) => void | Promise<void>`
-
-Callback invoked during `generateBundle` with the collected license data. The `context` parameter provides access to rolldown's plugin context, including `emitFile`.
-
-#### `opts.match`
-
-Type: `RegExp`\
-Default: `/^((UN)?LICEN(S|C)E|COPYING).*$/i`
-
-Regex to match license filenames in package directories.
-
-#### `opts.wrapLicenseText`
-
-Type: `number`\
-Default: `undefined` (no wrapping)
-
-When set, word-wrap `licenseText` to this column width.
-
-#### `opts.allow`
-
-Type: `(license: LicenseInfo) => boolean`\
-Default: `undefined` (no validation)
-
-Validate each dependency's license. Return `false` to reject it. By default, rejected dependencies are reported via the rolldown plugin context's `warn`. Use `failOnViolation` and `failOnUnlicensed` to throw build errors instead.
-
-#### `opts.failOnViolation`
-
-Type: `boolean`\
-Default: `false`
-
-Throw a build error when a dependency has an incompatible license.
-
-#### `opts.failOnUnlicensed`
-
-Type: `boolean`\
-Default: `false`
-
-Throw a build error when a dependency does not specify any license.
+- `done: (licenses: LicenseInfo[], context: PluginContext) => void | Promise<void>`\
+  Invoked during `generateBundle` with the collected licenses. `context` is rolldown's plugin context, including `emitFile`.
+- `match: RegExp`, default `/^((UN)?LICEN(S|C)E|COPYING).*$/i`\
+  Matches license filenames in package directories.
+- `wrapLicenseText?: number`\
+  Word-wrap `licenseText` to this column width.
+- `allow?: (license: LicenseInfo) => boolean`\
+  Return `false` to reject a dependency. Rejections warn via the plugin context unless a `failOn*` option is set.
+- `failOnViolation?: boolean`, default `false`\
+  Throw instead of warning when `allow` rejects a dependency that has a license.
+- `failOnUnlicensed?: boolean`, default `false`\
+  Throw instead of warning when `allow` rejects a dependency that has no license.
 
 ### `LicenseInfo`
 
@@ -89,7 +59,7 @@ type LicenseInfo = {
 
 ### `wrap(text, width)`
 
-Function to word-wrap `text` to a certain column `width`. Returns the wrapped string.
+Word-wraps `text` to column `width`, returns the wrapped string.
 
 ## License
 

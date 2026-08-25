@@ -20,7 +20,8 @@ async function bench(name: string, fn: () => unknown | Promise<unknown>) {
     times.push(performance.now() - start);
   }
   times.sort((a, b) => a - b);
-  console.info(`${name.padEnd(40)} med ${times[runs >> 1].toFixed(1)}ms  min ${times[0].toFixed(1)}ms`);
+  const med = (times[(runs - 1) >> 1] + times[runs >> 1]) / 2;
+  console.info(`${name.padEnd(40)} med ${med.toFixed(1)}ms  min ${times[0].toFixed(1)}ms`);
 }
 
 const tmpDir = mkdtempSync(join(tmpdir(), "license-bench-"));
@@ -39,14 +40,6 @@ for (let idx = 0; idx < pkgCount; idx++) {
   writeFileSync(join(libDir, "util.js"), `export const u${idx} = "${name}-util";`);
   for (let fileIdx = 0; fileIdx < 10; fileIdx++) {
     writeFileSync(join(pkgDir, `file${fileIdx}.js`), `// filler`);
-  }
-  if (idx % 10 === 0 && idx > 0) {
-    const nestedName = `${name}-nested`;
-    const nestedDir = join(pkgDir, "node_modules", nestedName);
-    mkdirSync(join(nestedDir, "lib"), {recursive: true});
-    writeFileSync(join(nestedDir, "package.json"), JSON.stringify({name: nestedName, version: "0.1.0", license: "ISC"}));
-    writeFileSync(join(nestedDir, "index.js"), `export const n${idx} = "${nestedName}";`);
-    writeFileSync(join(nestedDir, "LICENSE"), `ISC License\nCopyright (c) ${nestedName}`);
   }
 }
 

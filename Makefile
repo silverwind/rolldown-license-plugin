@@ -1,5 +1,4 @@
-SOURCE_FILES := index.ts
-DIST_FILES := dist/index.js
+DIST_FILES := dist/index.js dist/index.d.ts
 
 node_modules: pnpm-lock.yaml
 	pnpm install
@@ -22,14 +21,10 @@ lint-fix: node_modules
 test: node_modules
 	pnpm exec vitest
 
-.PHONY: test-update
-test-update: node_modules
-	pnpm exec vitest -u
-
 .PHONY: build
 build: node_modules $(DIST_FILES)
 
-$(DIST_FILES): $(SOURCE_FILES) pnpm-lock.yaml package.json tsdown.config.ts
+$(DIST_FILES): index.ts pnpm-lock.yaml package.json tsconfig.json tsdown.config.ts
 	pnpm exec tsdown
 
 .PHONY: update

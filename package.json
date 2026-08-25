@@ -1,13 +1,15 @@
 {
   "name": "rolldown-license-plugin",
   "version": "3.0.10",
-  "description": "Rolldown plugin to extract dependency licenses",
+  "description": "Rolldown/Vite plugin to extract dependency licenses and optionally validate them. Zero dependencies, optimized for performance.",
   "author": "silverwind <me@silverwind.io>",
   "repository": "silverwind/rolldown-license-plugin",
   "license": "BSD-2-Clause",
   "keywords": [
     "rolldown",
     "rolldown-plugin",
+    "vite",
+    "vite-plugin",
     "license",
     "licenses",
     "third-party"
@@ -34,7 +36,6 @@
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "eslint": "10.8.1",
     "eslint-config-silverwind": "144.0.2",
-    "jest-extended": "7.0.0",
     "rolldown": "1.2.4",
     "tsdown": "0.22.14",
     "tsdown-config-silverwind": "4.0.3",

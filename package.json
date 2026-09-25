@@ -3,7 +3,10 @@
   "version": "3.0.12",
   "description": "Rolldown/Vite plugin to extract dependency licenses and optionally validate them. Zero dependencies, optimized for performance.",
   "author": "silverwind <me@silverwind.io>",
-  "repository": "silverwind/rolldown-license-plugin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/silverwind/rolldown-license-plugin.git"
+  },
   "license": "BSD-2-Clause",
   "keywords": [
     "rolldown",

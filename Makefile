@@ -20,6 +20,11 @@ lint-fix: node_modules
 .PHONY: test
 test: node_modules
 	pnpm exec vitest
+	bun test --only-failures --concurrent
+
+.PHONY: bench
+bench: node_modules
+	node bench.ts
 
 .PHONY: build
 build: node_modules $(DIST_FILES)

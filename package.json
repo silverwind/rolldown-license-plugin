@@ -1,6 +1,6 @@
 {
   "name": "rolldown-license-plugin",
-  "version": "3.0.12",
+  "version": "3.0.13",
   "description": "Rolldown/Vite plugin to extract dependency licenses and optionally validate them. Zero dependencies, optimized for performance.",
   "author": "silverwind <me@silverwind.io>",
   "repository": {

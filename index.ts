@@ -58,6 +58,7 @@ export function wrap(text: string, width: number): string {
       const segment = line.slice(pos, breakAt).trimEnd();
       if (segment) output += `${segment}\n`; // an all-space segment is a break inside an indent run, not a blank line
       pos = breakAt + 1;
+      while (line[pos] === " ") pos++;
     }
     output += `${line.slice(pos).trimEnd()}\n`;
   }

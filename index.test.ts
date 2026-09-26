@@ -74,9 +74,10 @@ test("wrapLicenseText wraps license text to specified width and preserves blank 
   expect(pkg.licenseText).toContain("\n\n");
 });
 
-test("wrap expands tabs to 8-column stops", () => {
+test("wrap expands tabs to 8-column stops and drops the space run at each break", () => {
   expect(wrap("a\tb\tc", 80)).toBe(`a${" ".repeat(7)}b${" ".repeat(7)}c`);
   expect(wrap("\tx", 80)).toBe(`${" ".repeat(8)}x`);
+  expect(wrap("aaaaa  bbbbb", 5)).toBe("aaaaa\nbbbbb");
 });
 
 test("match with the global flag stays stateless on the readdir path and module id queries are stripped", async () => {

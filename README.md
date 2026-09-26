@@ -38,7 +38,7 @@ For Vite, import `defineConfig` from `vite` instead of `rolldown`. Everything el
 
 - `done: (licenses: LicenseInfo[], context: PluginContext) => void | Promise<void>`\
   Invoked during `generateBundle` with the collected licenses. `context` is rolldown's plugin context, including `emitFile`.
-- `match: RegExp`, default `/^((UN)?LICEN(S|C)E|COPYING).*$/i`\
+- `match?: RegExp`, default `/^((UN)?LICEN(S|C)E|COPYING).*$/i`\
   Matches license filenames in package directories.
 - `wrapLicenseText?: number`\
   Word-wrap `licenseText` to this column width.

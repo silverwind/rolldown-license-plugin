@@ -1,10 +1,13 @@
 # rolldown-license-plugin
-
 [![](https://img.shields.io/npm/v/rolldown-license-plugin.svg?style=flat)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://img.shields.io/npm/dm/rolldown-license-plugin.svg)](https://www.npmjs.org/package/rolldown-license-plugin) [![](https://packagephobia.com/badge?p=rolldown-license-plugin)](https://packagephobia.com/result?p=rolldown-license-plugin) [![](https://depx.co/api/badge/rolldown-license-plugin)](https://depx.co/pkg/rolldown-license-plugin)
 
 Rolldown/Vite plugin to extract dependency licenses and optionally validate them. Zero dependencies, optimized for performance.
 
 ## Usage
+
+```sh
+pnpm add -D rolldown-license-plugin
+```
 
 ```js
 import {defineConfig} from "rolldown";
@@ -61,6 +64,4 @@ type LicenseInfo = {
 
 Word-wraps `text` to column `width`, returns the wrapped string.
 
-## License
-
-© [silverwind](https://github.com/silverwind), distributed under BSD-2-Clause.
+© [silverwind](https://github.com/silverwind), distributed under BSD licence

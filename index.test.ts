@@ -2,76 +2,66 @@ import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {build} from "rolldown";
+import type {Plugin} from "rolldown";
 import {build as tsdownBuild} from "tsdown";
 import {build as viteBuild} from "vite";
 import {licensePlugin, findPkgRoot, wrap} from "./index.ts";
 import type {LicenseInfo, RolldownLicensePluginOpts} from "./index.ts";
 
-const fixturesDir = join(import.meta.dirname, "fixtures");
+type Opts = Omit<RolldownLicensePluginOpts, "done">;
 
-async function buildWithPlugin(opts: Omit<RolldownLicensePluginOpts, "done"> = {}): Promise<LicenseInfo[]> {
+const fixturesDir = join(import.meta.dirname, "fixtures");
+const entry = join(fixturesDir, "entry.js");
+const resolve = {modules: [join(fixturesDir, "node_modules")]};
+
+const bundlers = {
+  rolldown: (plugin: Plugin) => build({input: entry, resolve, write: false, plugins: [plugin]}),
+  tsdown: async (plugin: Plugin) => {
+    const outDir = mkdtempSync(join(tmpdir(), "tsdown-test-"));
+    await tsdownBuild({config: false, entry: [entry], plugins: [plugin], inputOptions: {resolve}, outDir, dts: false});
+    rmSync(outDir, {recursive: true, force: true});
+  },
+  vite: (plugin: Plugin) => viteBuild({root: fixturesDir, plugins: [plugin], build: {lib: {entry, formats: ["es"]}, write: false}, logLevel: "silent"}),
+};
+
+const expected = [
+  {name: "test-pkg-a", version: "1.0.0", license: "MIT", licenseText: expect.stringContaining("MIT License")},
+  {name: "test-pkg-b", version: "2.0.0", license: "ISC", licenseText: ""},
+  {name: "test-pkg-c", version: "3.0.0", license: "Apache-2.0", licenseText: ""},
+  {name: "test-pkg-d", version: "4.0.0", license: "MIT OR Apache-2.0", licenseText: ""},
+  {name: "test-pkg-e", version: "5.0.0", license: "", licenseText: ""},
+];
+
+async function collect(run: (plugin: Plugin) => Promise<unknown>, opts: Opts = {}): Promise<LicenseInfo[]> {
   let result: LicenseInfo[] = [];
-  await build({
-    input: join(fixturesDir, "entry.js"),
-    resolve: {
-      modules: [join(fixturesDir, "node_modules")],
-    },
-    write: false,
-    plugins: [licensePlugin({...opts, done(licenses) { result = licenses; }})],
-  });
+  await run(licensePlugin({...opts, done(licenses) { result = licenses; }}));
   return result;
 }
 
-test("collects licenses from bundled dependencies", async () => {
-  const result = await buildWithPlugin();
+async function expectLicenses(pkgs: [name: string, version: string, license: string, licenseFile: string, idSuffix?: string][], opts: Opts = {}) {
+  const tmp = mkdtempSync(join(tmpdir(), "license-test-"));
+  const modules: Record<string, object> = {};
+  const expectedLicenses: LicenseInfo[] = [];
+  for (const [name, version, license, licenseFile, idSuffix = ""] of pkgs) {
+    const dir = join(tmp, "node_modules", name);
+    const licenseText = licenseFile ? `${license} License\nCopyright (c) ${name}` : "";
+    mkdirSync(dir, {recursive: true});
+    writeFileSync(join(dir, "package.json"), JSON.stringify({name, version, license}));
+    if (licenseFile) writeFileSync(join(dir, licenseFile), licenseText);
+    modules[`${join(dir, "index.js")}${idSuffix}`] = {};
+    expectedLicenses.push({name, version, license, licenseText});
+  }
+  const result = await collect((plugin) => (plugin as any).generateBundle.call({}, {}, {chunk: {type: "chunk", modules}}), opts);
+  rmSync(tmp, {recursive: true});
+  expect(result).toEqual(expectedLicenses);
+}
 
-  expect(result).toHaveLength(5);
-
-  expect(result[0]).toEqual({
-    name: "test-pkg-a",
-    version: "1.0.0",
-    license: "MIT",
-    licenseText: expect.stringContaining("MIT License"),
-  });
-
-  expect(result[1]).toEqual({
-    name: "test-pkg-b",
-    version: "2.0.0",
-    license: "ISC",
-    licenseText: "",
-  });
-
-  expect(result[2]).toEqual({
-    name: "test-pkg-c",
-    version: "3.0.0",
-    license: "Apache-2.0",
-    licenseText: "",
-  });
-
-  expect(result[3]).toEqual({
-    name: "test-pkg-d",
-    version: "4.0.0",
-    license: "MIT OR Apache-2.0",
-    licenseText: "",
-  });
-
-  expect(result[4]).toEqual({
-    name: "test-pkg-e",
-    version: "5.0.0",
-    license: "",
-    licenseText: "",
-  });
+test.each(Object.entries(bundlers))("collects licenses from bundled dependencies with %s", async (_name, run) => {
+  expect(await collect(run)).toEqual(expected);
 });
 
 test("wrapLicenseText wraps license text to specified width and preserves blank lines", async () => {
-  const result = await buildWithPlugin({wrapLicenseText: 80});
-
-  const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
-  for (const line of pkg.licenseText.split("\n")) {
-    expect(line.length).toBeLessThanOrEqual(80);
-  }
-  expect(pkg.licenseText).toContain("MIT License");
-  expect(pkg.licenseText).toContain("\n\n");
+  expect((await collect(bundlers.rolldown, {wrapLicenseText: 80}))[0].licenseText).toBe("MIT License\n\nCopyright (c) Test\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of\nthis software and associated documentation files (the \"Software\"), to deal in\nthe Software without restriction.");
 });
 
 test("wrap expands tabs to 8-column stops and drops the space run at each break", () => {
@@ -81,224 +71,114 @@ test("wrap expands tabs to 8-column stops and drops the space run at each break"
 });
 
 test("match with the global flag stays stateless on the readdir path and module id queries are stripped", async () => {
-  const tmp = mkdtempSync(join(tmpdir(), "license-flags-"));
-  const modules: Record<string, object> = {};
-  for (let idx = 0; idx < 6; idx++) {
-    const dir = join(tmp, "node_modules", `flag-pkg-${idx}`);
-    mkdirSync(dir, {recursive: true});
-    writeFileSync(join(dir, "package.json"), JSON.stringify({name: `flag-pkg-${idx}`, version: "1.0.0", license: "MIT"}));
-    writeFileSync(join(dir, "LICENSE.md"), "MIT License");
-    const id = join(dir, "index.js");
-    modules[idx === 0 ? `${id}?v=1&dep=${join(tmp, "node_modules", "flag-pkg-5", "index.js")}` : id] = {};
-  }
-
-  let result: LicenseInfo[] = [];
-  const plugin = licensePlugin({match: /^licen[sc]e/gi, done(licenses) { result = licenses; }});
-  await (plugin as any).generateBundle.call({}, {}, {chunk: {type: "chunk", modules}});
-  rmSync(tmp, {recursive: true});
-
-  expect(result).toHaveLength(6);
-  for (const entry of result) expect(entry.licenseText).toBe("MIT License");
+  await expectLicenses(Array.from({length: 6}, (_entry, idx) => [`flag-pkg-${idx}`, "1.0.0", "MIT", "LICENSE.md", idx ? "" : "?v=1&dep=/x/node_modules/flag-pkg-5/index.js"]), {match: /^licen[sc]e/gi});
 });
 
-test("allow warns by default without failing", async () => {
-  const result = await buildWithPlugin({allow: (dep) => dep.license === "MIT"});
-  expect(result).toHaveLength(5);
+const isMit = (dep: LicenseInfo) => dep.license === "MIT";
+const hasLicense = (dep: LicenseInfo) => Boolean(dep.license);
+
+test.each<[string, Opts]>([
+  ["allow warns by default without failing", {allow: isMit}],
+  ["allow passes when all licenses match", {allow: () => true}],
+  ["failOnViolation does not throw for unlicensed", {allow: hasLicense, failOnViolation: true}],
+  ["failOnUnlicensed does not throw for license mismatch", {allow: (dep) => !dep.license || isMit(dep), failOnUnlicensed: true}],
+])("%s", async (_name, opts) => {
+  expect(await collect(bundlers.rolldown, opts)).toEqual(expected);
 });
 
-test("failOnViolation throws on license mismatch", async () => {
-  await expect(buildWithPlugin({
-    allow: (dep) => dep.license === "MIT",
-    failOnViolation: true,
-    failOnUnlicensed: true,
-  })).rejects.toThrow(/incompatible license[\s\S]*does not specify any license/);
+test.each<[string, Opts, RegExp | string]>([
+  ["failOnViolation throws on license mismatch", {allow: isMit, failOnViolation: true, failOnUnlicensed: true}, /incompatible license[\s\S]*does not specify any license/],
+  ["failOnUnlicensed throws on missing license", {allow: hasLicense, failOnUnlicensed: true}, "does not specify any license"],
+])("%s", async (_name, opts, error) => {
+  await expect(collect(bundlers.rolldown, opts)).rejects.toThrow(error);
 });
-
-test("failOnUnlicensed throws on missing license", async () => {
-  await expect(buildWithPlugin({
-    allow: (dep) => Boolean(dep.license),
-    failOnUnlicensed: true,
-  })).rejects.toThrow("does not specify any license");
-});
-
-test("failOnViolation does not throw for unlicensed", async () => {
-  const result = await buildWithPlugin({
-    allow: (dep) => Boolean(dep.license),
-    failOnViolation: true,
-  });
-  expect(result).toHaveLength(5);
-});
-
-test("failOnUnlicensed does not throw for license mismatch", async () => {
-  const result = await buildWithPlugin({
-    allow: (dep) => !dep.license || dep.license === "MIT",
-    failOnUnlicensed: true,
-  });
-  expect(result).toHaveLength(5);
-});
-
-test("allow passes when all licenses match", async () => {
-  const result = await buildWithPlugin({allow: () => true});
-  expect(result).toHaveLength(5);
-});
-
-const manyDeps: {name: string, version: string, license: string, hasText: boolean}[] = [
-  {name: "@citation-js/core", version: "0.7.21", license: "MIT", hasText: true},
-  {name: "@citation-js/plugin-bibtex", version: "0.7.21", license: "MIT", hasText: true},
-  {name: "@citation-js/plugin-csl", version: "0.7.22", license: "MIT", hasText: true},
-  {name: "@citation-js/plugin-software-formats", version: "0.6.2", license: "MIT", hasText: true},
-  {name: "@codemirror/autocomplete", version: "6.20.1", license: "MIT", hasText: true},
-  {name: "@codemirror/commands", version: "6.10.3", license: "MIT", hasText: true},
-  {name: "@codemirror/lang-json", version: "6.0.2", license: "MIT", hasText: true},
-  {name: "@codemirror/lang-markdown", version: "6.5.0", license: "MIT", hasText: true},
-  {name: "@codemirror/language", version: "6.12.3", license: "MIT", hasText: true},
-  {name: "@codemirror/language-data", version: "6.5.2", license: "MIT", hasText: true},
-  {name: "@codemirror/legacy-modes", version: "6.5.2", license: "MIT", hasText: true},
-  {name: "@codemirror/lint", version: "6.9.5", license: "MIT", hasText: true},
-  {name: "@codemirror/search", version: "6.6.0", license: "MIT", hasText: true},
-  {name: "@codemirror/state", version: "6.6.0", license: "MIT", hasText: true},
-  {name: "@codemirror/view", version: "6.41.0", license: "MIT", hasText: true},
-  {name: "@github/markdown-toolbar-element", version: "2.2.3", license: "MIT", hasText: true},
-  {name: "@github/paste-markdown", version: "1.5.3", license: "MIT", hasText: true},
-  {name: "@github/text-expander-element", version: "2.9.4", license: "MIT", hasText: true},
-  {name: "@lezer/highlight", version: "1.2.3", license: "MIT", hasText: true},
-  {name: "@mcaptcha/vanilla-glue", version: "0.1.0-alpha-3", license: "(MIT OR Apache-2.0)", hasText: false},
-  {name: "@mermaid-js/layout-elk", version: "0.2.1", license: "MIT", hasText: true},
-  {name: "@primer/octicons", version: "19.23.1", license: "MIT", hasText: true},
-  {name: "@replit/codemirror-indentation-markers", version: "6.5.3", license: "MIT", hasText: true},
-  {name: "@replit/codemirror-lang-nix", version: "6.0.1", license: "MIT", hasText: true},
-  {name: "@replit/codemirror-lang-svelte", version: "6.0.0", license: "MIT", hasText: true},
-  {name: "@replit/codemirror-vscode-keymap", version: "6.0.2", license: "MIT", hasText: false},
-  {name: "@resvg/resvg-wasm", version: "2.6.2", license: "MPL-2.0", hasText: false},
-  {name: "@silverwind/vue3-calendar-heatmap", version: "2.1.1", license: "MIT", hasText: true},
-  {name: "@vitejs/plugin-vue", version: "6.0.5", license: "MIT", hasText: true},
-  {name: "ansi_up", version: "6.0.6", license: "MIT", hasText: true},
-  {name: "asciinema-player", version: "3.15.1", license: "Apache-2.0", hasText: true},
-  {name: "chart.js", version: "4.5.1", license: "MIT", hasText: true},
-  {name: "chartjs-adapter-dayjs-4", version: "1.0.4", license: "MIT", hasText: false},
-  {name: "chartjs-plugin-zoom", version: "2.2.0", license: "MIT", hasText: true},
-  {name: "clippie", version: "4.1.10", license: "BSD-2-Clause", hasText: true},
-  {name: "codemirror-lang-elixir", version: "4.0.1", license: "Apache-2.0", hasText: true},
-  {name: "colord", version: "2.9.3", license: "MIT", hasText: true},
-  {name: "compare-versions", version: "6.1.1", license: "MIT", hasText: true},
-  {name: "cropperjs", version: "1.6.2", license: "MIT", hasText: true},
-  {name: "dayjs", version: "1.11.20", license: "MIT", hasText: true},
-  {name: "dropzone", version: "6.0.0-beta.2", license: "MIT", hasText: true},
-  {name: "easymde", version: "2.20.0", license: "MIT", hasText: true},
-  {name: "esbuild", version: "0.28.0", license: "MIT", hasText: true},
-  {name: "htmx.org", version: "2.0.8", license: "0BSD", hasText: true},
-  {name: "idiomorph", version: "0.7.4", license: "0BSD", hasText: true},
-  {name: "jquery", version: "4.0.0", license: "MIT", hasText: true},
-  {name: "js-yaml", version: "4.1.1", license: "MIT", hasText: true},
-  {name: "katex", version: "0.16.45", license: "MIT", hasText: true},
-  {name: "mermaid", version: "11.14.0", license: "MIT", hasText: true},
-  {name: "online-3d-viewer", version: "0.18.0", license: "MIT", hasText: true},
-  {name: "pdfobject", version: "2.3.1", license: "MIT", hasText: true},
-  {name: "perfect-debounce", version: "2.1.0", license: "MIT", hasText: true},
-  {name: "postcss", version: "8.5.9", license: "MIT", hasText: true},
-  {name: "rolldown-license-plugin", version: "2.2.0", license: "BSD-2-Clause", hasText: true},
-  {name: "sortablejs", version: "1.15.7", license: "MIT", hasText: true},
-  {name: "swagger-ui-dist", version: "5.32.2", license: "Apache-2.0", hasText: true},
-  {name: "tailwindcss", version: "3.4.19", license: "MIT", hasText: true},
-  {name: "throttle-debounce", version: "5.0.2", license: "MIT", hasText: true},
-  {name: "tippy.js", version: "6.3.7", license: "MIT", hasText: true},
-  {name: "toastify-js", version: "1.12.0", license: "MIT", hasText: true},
-  {name: "tributejs", version: "5.1.3", license: "MIT", hasText: true},
-  {name: "uint8-to-base64", version: "0.2.1", license: "ISC", hasText: true},
-  {name: "vanilla-colorful", version: "0.7.2", license: "MIT", hasText: true},
-  {name: "vite", version: "8.0.7", license: "MIT", hasText: true},
-  {name: "vite-string-plugin", version: "2.0.2", license: "BSD-2-Clause", hasText: true},
-  {name: "vue", version: "3.5.32", license: "MIT", hasText: true},
-  {name: "vue-bar-graph", version: "2.2.0", license: "MIT", hasText: false},
-  {name: "vue-chartjs", version: "5.3.3", license: "MIT", hasText: true},
-];
 
 test("many packages with scoped names and diverse licenses", async () => {
-  const tmp = mkdtempSync(join(tmpdir(), "license-test-"));
-  const nm = join(tmp, "node_modules");
-
-  const modules: Record<string, object> = {};
-  for (const dep of manyDeps) {
-    const dir = join(nm, dep.name);
-    mkdirSync(dir, {recursive: true});
-    writeFileSync(join(dir, "package.json"), JSON.stringify({name: dep.name, version: dep.version, license: dep.license}));
-    if (dep.hasText) writeFileSync(join(dir, "LICENSE"), `${dep.license} License\nCopyright (c) ${dep.name}`);
-    modules[join(dir, "index.js")] = {};
-  }
-
-  let result: LicenseInfo[] = [];
-  const plugin = licensePlugin({done(licenses) { result = licenses; }});
-  await (plugin as any).generateBundle.call({}, {}, {chunk: {type: "chunk", modules}});
-  rmSync(tmp, {recursive: true});
-
-  expect(result.map(({name, version, license, licenseText}) => ({
-    name, version, license, hasText: licenseText.length > 0,
-  }))).toEqual(manyDeps);
+  await expectLicenses([
+    ["@citation-js/core", "0.7.21", "MIT", "LICENSE"],
+    ["@citation-js/plugin-bibtex", "0.7.21", "MIT", "LICENSE"],
+    ["@citation-js/plugin-csl", "0.7.22", "MIT", "LICENSE"],
+    ["@citation-js/plugin-software-formats", "0.6.2", "MIT", "LICENSE"],
+    ["@codemirror/autocomplete", "6.20.1", "MIT", "LICENSE"],
+    ["@codemirror/commands", "6.10.3", "MIT", "LICENSE"],
+    ["@codemirror/lang-json", "6.0.2", "MIT", "LICENSE"],
+    ["@codemirror/lang-markdown", "6.5.0", "MIT", "LICENSE"],
+    ["@codemirror/language", "6.12.3", "MIT", "LICENSE"],
+    ["@codemirror/language-data", "6.5.2", "MIT", "LICENSE"],
+    ["@codemirror/legacy-modes", "6.5.2", "MIT", "LICENSE"],
+    ["@codemirror/lint", "6.9.5", "MIT", "LICENSE"],
+    ["@codemirror/search", "6.6.0", "MIT", "LICENSE"],
+    ["@codemirror/state", "6.6.0", "MIT", "LICENSE"],
+    ["@codemirror/view", "6.41.0", "MIT", "LICENSE"],
+    ["@github/markdown-toolbar-element", "2.2.3", "MIT", "LICENSE"],
+    ["@github/paste-markdown", "1.5.3", "MIT", "LICENSE"],
+    ["@github/text-expander-element", "2.9.4", "MIT", "LICENSE"],
+    ["@lezer/highlight", "1.2.3", "MIT", "LICENSE"],
+    ["@mcaptcha/vanilla-glue", "0.1.0-alpha-3", "(MIT OR Apache-2.0)", ""],
+    ["@mermaid-js/layout-elk", "0.2.1", "MIT", "LICENSE"],
+    ["@primer/octicons", "19.23.1", "MIT", "LICENSE"],
+    ["@replit/codemirror-indentation-markers", "6.5.3", "MIT", "LICENSE"],
+    ["@replit/codemirror-lang-nix", "6.0.1", "MIT", "LICENSE"],
+    ["@replit/codemirror-lang-svelte", "6.0.0", "MIT", "LICENSE"],
+    ["@replit/codemirror-vscode-keymap", "6.0.2", "MIT", ""],
+    ["@resvg/resvg-wasm", "2.6.2", "MPL-2.0", ""],
+    ["@silverwind/vue3-calendar-heatmap", "2.1.1", "MIT", "LICENSE"],
+    ["@vitejs/plugin-vue", "6.0.5", "MIT", "LICENSE"],
+    ["ansi_up", "6.0.6", "MIT", "LICENSE"],
+    ["asciinema-player", "3.15.1", "Apache-2.0", "LICENSE"],
+    ["chart.js", "4.5.1", "MIT", "LICENSE"],
+    ["chartjs-adapter-dayjs-4", "1.0.4", "MIT", ""],
+    ["chartjs-plugin-zoom", "2.2.0", "MIT", "LICENSE"],
+    ["clippie", "4.1.10", "BSD-2-Clause", "LICENSE"],
+    ["codemirror-lang-elixir", "4.0.1", "Apache-2.0", "LICENSE"],
+    ["colord", "2.9.3", "MIT", "LICENSE"],
+    ["compare-versions", "6.1.1", "MIT", "LICENSE"],
+    ["cropperjs", "1.6.2", "MIT", "LICENSE"],
+    ["dayjs", "1.11.20", "MIT", "LICENSE"],
+    ["dropzone", "6.0.0-beta.2", "MIT", "LICENSE"],
+    ["easymde", "2.20.0", "MIT", "LICENSE"],
+    ["esbuild", "0.28.0", "MIT", "LICENSE"],
+    ["htmx.org", "2.0.8", "0BSD", "LICENSE"],
+    ["idiomorph", "0.7.4", "0BSD", "LICENSE"],
+    ["jquery", "4.0.0", "MIT", "LICENSE"],
+    ["js-yaml", "4.1.1", "MIT", "LICENSE"],
+    ["katex", "0.16.45", "MIT", "LICENSE"],
+    ["mermaid", "11.14.0", "MIT", "LICENSE"],
+    ["online-3d-viewer", "0.18.0", "MIT", "LICENSE"],
+    ["pdfobject", "2.3.1", "MIT", "LICENSE"],
+    ["perfect-debounce", "2.1.0", "MIT", "LICENSE"],
+    ["postcss", "8.5.9", "MIT", "LICENSE"],
+    ["rolldown-license-plugin", "2.2.0", "BSD-2-Clause", "LICENSE"],
+    ["sortablejs", "1.15.7", "MIT", "LICENSE"],
+    ["swagger-ui-dist", "5.32.2", "Apache-2.0", "LICENSE"],
+    ["tailwindcss", "3.4.19", "MIT", "LICENSE"],
+    ["throttle-debounce", "5.0.2", "MIT", "LICENSE"],
+    ["tippy.js", "6.3.7", "MIT", "LICENSE"],
+    ["toastify-js", "1.12.0", "MIT", "LICENSE"],
+    ["tributejs", "5.1.3", "MIT", "LICENSE"],
+    ["uint8-to-base64", "0.2.1", "ISC", "LICENSE"],
+    ["vanilla-colorful", "0.7.2", "MIT", "LICENSE"],
+    ["vite", "8.0.7", "MIT", "LICENSE"],
+    ["vite-string-plugin", "2.0.2", "BSD-2-Clause", "LICENSE"],
+    ["vue", "3.5.32", "MIT", "LICENSE"],
+    ["vue-bar-graph", "2.2.0", "MIT", ""],
+    ["vue-chartjs", "5.3.3", "MIT", "LICENSE"],
+  ]);
 });
 
-test("works with tsdown", async () => {
-  let result: LicenseInfo[] = [];
-  const outDir = mkdtempSync(join(tmpdir(), "tsdown-test-"));
-  await tsdownBuild({
-    config: false,
-    entry: [join(fixturesDir, "entry.js")],
-    plugins: [licensePlugin({done(licenses) { result = licenses; }})],
-    inputOptions: {
-      resolve: {
-        modules: [join(fixturesDir, "node_modules")],
-      },
-    },
-    outDir,
-    dts: false,
-  });
-  rmSync(outDir, {recursive: true, force: true});
-
-  expect(result).toHaveLength(5);
-  expect(result[0]).toEqual({
-    name: "test-pkg-a",
-    version: "1.0.0",
-    license: "MIT",
-    licenseText: expect.stringContaining("MIT License"),
-  });
-});
-
-test("works with vite", async () => {
-  let result: LicenseInfo[] = [];
-  await viteBuild({
-    root: fixturesDir,
-    plugins: [licensePlugin({done(licenses) { result = licenses; }})],
-    build: {
-      lib: {
-        entry: join(fixturesDir, "entry.js"),
-        formats: ["es"],
-      },
-      write: false,
-    },
-    logLevel: "silent",
-  });
-
-  expect(result).toHaveLength(5);
-  expect(result[0]).toEqual({
-    name: "test-pkg-a",
-    version: "1.0.0",
-    license: "MIT",
-    licenseText: expect.stringContaining("MIT License"),
-  });
-});
-
-test("findPkgRoot resolves package roots", () => {
-  expect(findPkgRoot("/x/node_modules/pkg/lib/foo.js")).toBe("/x/node_modules/pkg");
-  expect(findPkgRoot("/x/node_modules/pkg/index.js")).toBe("/x/node_modules/pkg");
-  expect(findPkgRoot("/x/node_modules/pkg")).toBe("/x/node_modules/pkg");
-  expect(findPkgRoot("/x/node_modules/@scope/pkg/lib/foo.js")).toBe("/x/node_modules/@scope/pkg");
-  expect(findPkgRoot("/x/node_modules/@scope/pkg")).toBe("/x/node_modules/@scope/pkg");
-  expect(findPkgRoot("/x/node_modules/a/node_modules/b/lib/foo.js")).toBe("/x/node_modules/a/node_modules/b");
-  expect(findPkgRoot("/x/node_modules/@s/a/node_modules/@t/b/foo.js")).toBe("/x/node_modules/@s/a/node_modules/@t/b");
-});
-
-test("findPkgRoot returns null for invalid paths", () => {
-  expect(findPkgRoot("/x/no-modules/foo.js")).toBeNull();
-  expect(findPkgRoot("/x/node_modules/@scope")).toBeNull();
-  expect(findPkgRoot("/x/node_modules/@")).toBeNull();
-  expect(findPkgRoot("")).toBeNull();
+test("findPkgRoot resolves package roots and returns null for invalid paths", () => {
+  const roots: Record<string, string | null> = {
+    "/x/node_modules/pkg/lib/foo.js": "/x/node_modules/pkg",
+    "/x/node_modules/pkg/index.js": "/x/node_modules/pkg",
+    "/x/node_modules/pkg": "/x/node_modules/pkg",
+    "/x/node_modules/@scope/pkg/lib/foo.js": "/x/node_modules/@scope/pkg",
+    "/x/node_modules/@scope/pkg": "/x/node_modules/@scope/pkg",
+    "/x/node_modules/a/node_modules/b/lib/foo.js": "/x/node_modules/a/node_modules/b",
+    "/x/node_modules/@s/a/node_modules/@t/b/foo.js": "/x/node_modules/@s/a/node_modules/@t/b",
+    "/x/no-modules/foo.js": null,
+    "/x/node_modules/@scope": null,
+    "/x/node_modules/@": null,
+    "": null,
+  };
+  expect(Object.fromEntries(Object.keys(roots).map((path) => [path, findPkgRoot(path)]))).toStrictEqual(roots);
 });

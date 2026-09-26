@@ -5,11 +5,11 @@ import {build} from "rolldown";
 import {build as tsdownBuild} from "tsdown";
 import {build as viteBuild} from "vite";
 import {licensePlugin, findPkgRoot, wrap} from "./index.ts";
-import type {LicenseInfo} from "./index.ts";
+import type {LicenseInfo, RolldownLicensePluginOpts} from "./index.ts";
 
 const fixturesDir = join(import.meta.dirname, "fixtures");
 
-async function buildWithPlugin(opts: Partial<Omit<Parameters<typeof licensePlugin>[0], "done">> = {}): Promise<LicenseInfo[]> {
+async function buildWithPlugin(opts: Omit<RolldownLicensePluginOpts, "done"> = {}): Promise<LicenseInfo[]> {
   let result: LicenseInfo[] = [];
   await build({
     input: join(fixturesDir, "entry.js"),
@@ -63,7 +63,7 @@ test("collects licenses from bundled dependencies", async () => {
   });
 });
 
-test("wrapLicenseText wraps license text to specified width", async () => {
+test("wrapLicenseText wraps license text to specified width and preserves blank lines", async () => {
   const result = await buildWithPlugin({wrapLicenseText: 80});
 
   const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
@@ -71,13 +71,6 @@ test("wrapLicenseText wraps license text to specified width", async () => {
     expect(line.length).toBeLessThanOrEqual(80);
   }
   expect(pkg.licenseText).toContain("MIT License");
-  expect(pkg.licenseText).toContain("\n");
-});
-
-test("wrapLicenseText preserves blank lines", async () => {
-  const result = await buildWithPlugin({wrapLicenseText: 80});
-
-  const pkg = result.find((entry) => entry.name === "test-pkg-a")!;
   expect(pkg.licenseText).toContain("\n\n");
 });
 
@@ -86,9 +79,7 @@ test("wrap expands tabs to 8-column stops", () => {
   expect(wrap("\tx", 80)).toBe(`${" ".repeat(8)}x`);
 });
 
-// license files are named "LICENSE.md" so every package takes the readdir path, where a
-// stateful `lastIndex` from a previous `test` call would make matches alternate
-test("match with the global flag stays stateless", async () => {
+test("match with the global flag stays stateless on the readdir path and module id queries are stripped", async () => {
   const tmp = mkdtempSync(join(tmpdir(), "license-flags-"));
   const modules: Record<string, object> = {};
   for (let idx = 0; idx < 6; idx++) {
@@ -96,7 +87,6 @@ test("match with the global flag stays stateless", async () => {
     mkdirSync(dir, {recursive: true});
     writeFileSync(join(dir, "package.json"), JSON.stringify({name: `flag-pkg-${idx}`, version: "1.0.0", license: "MIT"}));
     writeFileSync(join(dir, "LICENSE.md"), "MIT License");
-    // the query embeds another node_modules path, which resolves to the wrong package if not stripped
     const id = join(dir, "index.js");
     modules[idx === 0 ? `${id}?v=1&dep=${join(tmp, "node_modules", "flag-pkg-5", "index.js")}` : id] = {};
   }
@@ -237,8 +227,7 @@ test("many packages with scoped names and diverse licenses", async () => {
 
   let result: LicenseInfo[] = [];
   const plugin = licensePlugin({done(licenses) { result = licenses; }});
-  const ctx = {warn: () => {}, error: (msg: string) => { throw new Error(msg); }};
-  await (plugin as any).generateBundle.call(ctx, {}, {chunk: {type: "chunk", modules}});
+  await (plugin as any).generateBundle.call({}, {}, {chunk: {type: "chunk", modules}});
   rmSync(tmp, {recursive: true});
 
   expect(result.map(({name, version, license, licenseText}) => ({

@@ -81,7 +81,6 @@ async function retryEmfile<Result>(fn: () => Promise<Result>): Promise<Result> {
   }
 }
 
-/** Read a file, returning an empty string when it is missing or unreadable */
 async function readText(path: string): Promise<string> {
   try {
     return await retryEmfile(() => readFile(path, "utf8"));
@@ -90,7 +89,6 @@ async function readText(path: string): Promise<string> {
   }
 }
 
-/** List a directory, returning an empty array when it is missing or unreadable */
 async function readEntries(dir: string): Promise<string[]> {
   try {
     return await retryEmfile(() => readdir(dir));
@@ -104,7 +102,7 @@ function parseLicense(pkgJson: PkgJson): string {
   if (pkgJson.license?.type) return pkgJson.license.type;
   if (Array.isArray(pkgJson.licenses)) {
     return pkgJson.licenses
-      .map((entry) => typeof entry === "string" ? entry : entry?.type ?? "")
+      .map((entry) => typeof entry === "string" ? entry : entry?.type)
       .filter(Boolean)
       .join(" OR ");
   }
@@ -155,7 +153,7 @@ export const licensePlugin = ({done, match = defaultMatch, wrapLicenseText, allo
     // findPkgRoot returns forward-slash paths, so concat is cross-platform-safe and avoids path.join overhead.
     const parsed = await Promise.all(Array.from(roots, async (dir) => {
       try {
-        const pkgJson = JSON.parse(await retryEmfile(() => readFile(`${dir}/package.json`, "utf8"))) as PkgJson;
+        const pkgJson = JSON.parse(await readText(`${dir}/package.json`)) as PkgJson;
         if (!pkgJson.name) return null;
         return {dir, name: pkgJson.name, version: pkgJson.version ?? "", license: parseLicense(pkgJson)};
       } catch {

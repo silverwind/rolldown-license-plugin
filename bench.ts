@@ -29,6 +29,7 @@ const nmDir = join(tmpDir, "node_modules");
 const pkgCount = 900;
 
 console.info(`Creating ${pkgCount} fixture packages...`);
+const importLines: string[] = [];
 for (let idx = 0; idx < pkgCount; idx++) {
   const name = `bench-pkg-${String(idx).padStart(4, "0")}`;
   const pkgDir = join(nmDir, name);
@@ -41,11 +42,6 @@ for (let idx = 0; idx < pkgCount; idx++) {
   for (let fileIdx = 0; fileIdx < 10; fileIdx++) {
     writeFileSync(join(pkgDir, `file${fileIdx}.js`), `// filler`);
   }
-}
-
-const importLines: string[] = [];
-for (let idx = 0; idx < pkgCount; idx++) {
-  const name = `bench-pkg-${String(idx).padStart(4, "0")}`;
   importLines.push(`export {x${idx}} from "${name}";`, `export {u${idx}} from "${name}/lib/util.js";`);
 }
 writeFileSync(join(tmpDir, "entry.js"), importLines.join("\n"));
@@ -91,7 +87,6 @@ try {
 
   const roots = new Set<string>();
   for (const chunk of Object.values(capturedBundle)) {
-    if (chunk.type !== "chunk") continue;
     for (const moduleId of Object.keys(chunk.modules)) {
       const qIdx = moduleId.indexOf("?");
       const root = findPkgRoot(qIdx === -1 ? moduleId : moduleId.slice(0, qIdx));

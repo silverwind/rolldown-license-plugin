@@ -39,7 +39,7 @@ type Pkg = {dir: string, name: string, version: string, license: string};
 /** Word-wrap plain text to a specified column width */
 export function wrap(text: string, width: number): string {
   if (width < 0) throw new RangeError(`wrap: width must not be negative, got ${width}`); // negative width never advances `pos`
-  const lines: string[] = [];
+  let output = "";
   for (const rawLine of text.replace(/\r/g, "").split("\n")) {
     // `shift` tracks the columns added by previous tabs so every tab stops on a multiple of 8
     let shift = 0;
@@ -56,12 +56,12 @@ export function wrap(text: string, width: number): string {
         if (breakAt === -1) break; // single word longer than the remaining width
       }
       const segment = line.slice(pos, breakAt).trimEnd();
-      if (segment) lines.push(segment); // an all-space segment is a break inside an indent run, not a blank line
+      if (segment) output += `${segment}\n`; // an all-space segment is a break inside an indent run, not a blank line
       pos = breakAt + 1;
     }
-    lines.push(line.slice(pos).trimEnd());
+    output += `${line.slice(pos).trimEnd()}\n`;
   }
-  return lines.join("\n");
+  return output.slice(0, -1);
 }
 
 /**

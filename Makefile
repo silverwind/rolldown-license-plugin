@@ -1,4 +1,5 @@
-DIST_FILES := dist/index.js dist/index.d.ts
+SOURCE_FILES := index.ts
+DIST_FILES := dist/index.js
 
 node_modules: pnpm-lock.yaml
 	pnpm install
@@ -22,6 +23,10 @@ test: node_modules
 	pnpm exec vitest
 	bun test --only-failures --concurrent
 
+.PHONY: test-update
+test-update: node_modules
+	pnpm exec vitest -u
+
 .PHONY: bench
 bench: node_modules
 	node bench.ts
@@ -29,8 +34,12 @@ bench: node_modules
 .PHONY: build
 build: node_modules $(DIST_FILES)
 
-$(DIST_FILES): index.ts pnpm-lock.yaml package.json tsconfig.json tsdown.config.ts
+$(DIST_FILES): $(SOURCE_FILES) pnpm-lock.yaml package.json tsconfig.json tsdown.config.ts
 	pnpm exec tsdown
+
+.PHONY: publish
+publish: node_modules
+	pnpm publish --no-git-checks
 
 .PHONY: update
 update: update-js update-actions
@@ -42,14 +51,10 @@ update-js: node_modules
 	pnpm install
 	@touch node_modules
 
-.PHONY: publish
-publish: node_modules
-	pnpm publish --no-git-checks
+.PHONY: update-actions
+update-actions: node_modules
+	pnpm exec updates -u -M actions
 
 .PHONY: patch minor major
 patch minor major: node_modules lint test
 	pnpm exec versions -R $@ package.json
-
-.PHONY: update-actions
-update-actions: node_modules
-	pnpm exec updates -u -M actions

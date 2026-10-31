@@ -2,7 +2,7 @@ import {readFile, readdir} from "node:fs/promises";
 import {sep} from "node:path";
 import type {Plugin, PluginContext} from "rolldown";
 
-export const defaultMatch = /^((UN)?LICEN(S|C)E|COPYING).*$/i;
+export const defaultMatch: RegExp = /^((UN)?LICEN(S|C)E|COPYING).*$/i;
 
 /** License information for a single bundled dependency */
 export type LicenseInfo = {

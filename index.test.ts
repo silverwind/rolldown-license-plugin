@@ -15,10 +15,10 @@ const entry = join(fixturesDir, "entry.js");
 const resolve = {modules: [join(fixturesDir, "node_modules")]};
 
 const bundlers = {
-  rolldown: (plugin: Plugin) => build({input: entry, resolve, write: false, plugins: [plugin]}),
+  rolldown: (plugin: Plugin) => build({input: entry, resolve, write: false, plugins: [plugin], logLevel: "silent"}),
   tsdown: async (plugin: Plugin) => {
     const outDir = mkdtempSync(join(tmpdir(), "tsdown-test-"));
-    await tsdownBuild({config: false, entry: [entry], plugins: [plugin], inputOptions: {resolve}, outDir, dts: false});
+    await tsdownBuild({config: false, entry: [entry], plugins: [plugin], inputOptions: {resolve}, outDir, dts: false, logLevel: "silent"});
     rmSync(outDir, {recursive: true, force: true});
   },
   vite: (plugin: Plugin) => viteBuild({root: fixturesDir, plugins: [plugin], build: {lib: {entry, formats: ["es"]}, write: false}, logLevel: "silent"}),
